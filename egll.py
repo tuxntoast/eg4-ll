@@ -50,7 +50,7 @@ class EG4_LL(Battery):
         super(EG4_LL, self).__init__(port, baud, address)
         self.cell_min_voltage = 0
         self.cell_max_voltage = None
-        self.poll_interval = 10000
+        self.poll_interval = 5000
         self.type = self.BATTERYTYPE
         self.has_settings = 0
         self.reset_soc = 0
@@ -136,10 +136,12 @@ class EG4_LL(Battery):
                 cell_reply = self.read_cell_details(ser, id)
                 if hw_reply is not False and cell_reply is not False:
                     self.battery_stats[id] = { **cell_reply, **hw_reply }
+                else:
+                    return False
                 id+=1
 
         result = self.rollupBatteryBank(self.battery_stats)
-        if (self.statuslogger is True) or (result == "Failed"):
+        if self.statuslogger is True:
             self.status_logger(self.battery_stats)
         return True
 
@@ -521,8 +523,8 @@ class EG4_LL(Battery):
                         self.battery_stats[id] = { **self.battery_stats[id], **dataPacket }
                     else:
                         self.battery_stats[id] = dataPacket
-                else:
-                    return False
+                #else:
+                #    return False
                 id+=1
         result = self.rollupBatteryBank(self.battery_stats)
         if self.statuslogger is True:
