@@ -6,21 +6,21 @@
 from battery import Battery, Cell
 
 # from batters import Protection
-from utils import logger, read_serial_data
+from utils import logger
 from struct import unpack_from
 from time import sleep
 from pprint import pformat
-import serial, struct
+import serial, struct, sys
 import utils
-import sys
 
 #    Author: Pfitz /
-#    Date: 01 Aug 2024
+#    Date: 07 Sept 2024
 #    Version 2.0
 #     - Tested / Updated to work with dbus-SerialBattery v1.3.20240705
 #     - Added function get_max_temp() get_min_temp() - New calls by dbus-serial for adaptive charing
 #     - Updates to get_balancing() function - Looks at default value from BMS Settings to indicate when
 #       blancing mode would be active. Value are not pulled from the BMS config yet, and thus could be different
+#     - Command Checksum Code added - This enabled commands to be generated from a range of 1 to 64 for BMS ID
 #     - Starting to add support for BMS channing / more then one battery unit
 #        - Commands, and new function path
 #        - Connect and Poll all BMS units in Communcation Chain
@@ -28,7 +28,6 @@ import sys
 #       Tasks:
 #            - Passing all cell voltage to OS, but as different pack
 #                Issue: DVCC will add all cell to find charge voltage, this should be sum of all cell in pack
-#            - Command Check Sum Logic - Would allow for commands to be generated from code, rather then static
 #    Version 1.1
 #     Cell Voltage Implemented
 #     Hardware Name / Version / Serial Implemented
@@ -42,7 +41,7 @@ import sys
 # One RS232 Cable to USB is needed when connecting to the Cerbo GX
 # A networking cable should be connected between each of the BMS RS485 Ports and the other BMS units
 # The master unit or first unit should have a Dip Switch ID set to 16 (12v) or 64 (24v and 48v)
-# All other BMS should have a Dip switch setting of 1 - 16 (12v) or 1 - 63 (24v and 48v)
+# All other BMS should have a Dip switch setting of 1 - 16 (12v) or 1 - 64 (24v and 48v)
 
 class EG4_LL(Battery):
     def __init__(self, port, baud, address):
@@ -55,28 +54,25 @@ class EG4_LL(Battery):
         self.has_settings = 0
         self.reset_soc = 0
         self.soc_to_set = None
-        self.runtime = 1  # TROUBLESHOOTING for no reply errors
+        self.runtime = 0  # TROUBLESHOOTING for no reply errors
 
-    # Modbus uses 7C call vs Lifepower 7E, as return values do not correlate to the Lifepower ones if 7E is used.
-    # at least on my own BMS.
     statuslogger = False
     debug = False  # Set to true for wordy debugging in logs
     debug_hex = False
     debug_config_hex = False
     debug_config = False
-    # The first item in the list should be the master ID of the system (16 / 64 on 12v vs 48 volt systems)
+
+    #batteryPackId = utils.EG4_LL_BATTERY_PACK_IDS
     batteryPackId = [ 16, 1 ]
     batteryMasterId = int(batteryPackId[0])
+    batteryCount = len(batteryPackId)
     battery_stats = {}
     serialTimeout = .3
-
-    #balancing = 0
+    
+    serialCommandDelay = 0
+    poll_interval = 5000
     BATTERYTYPE = "EG4 LL"
     balacing_text = "UNKNOWN"
-    LENGTH_CHECK = 0
-    LENGTH_CHECK
-    LENGTH_POS = 2  # offset starting from 0
-    LENGTH_FIXED = -1
 
     hwCommandRoot = b"\x03\x00\x69\x00\x17"
     cellCommandRoot = b"\x03\x00\x00\x00\x27"
@@ -85,29 +81,37 @@ class EG4_LL(Battery):
     def unique_identifier(self):
         return "4S12400190500001"
 
+    def open_serial(self):
+        ser = serial.Serial(self.port,
+            baudrate=self.baud_rate,
+            timeout=self.serialTimeout,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            bytesize=serial.EIGHTBITS)
+        if ser.isOpen() == True:
+            return ser
+        else:
+            return False
+
     def test_connection(self):
         # call a function that will connect to the battery, send a command and retrieve the result.
         # The result or call should be unique to this BMS. Battery name or version, etc.
         # Return True if success, False for failure
         try:
             self.battery_stats = {}
-            with serial.Serial(self.port,
-                                baudrate=self.baud_rate,
-                                timeout=self.serialTimeout,
-                                parity=serial.PARITY_NONE,
-                                stopbits=serial.STOPBITS_ONE,
-                                bytesize=serial.EIGHTBITS) as ser:
-                BMS_list = self.discovery_pack(ser)
-                if len(BMS_list) > 0 and self.batteryMasterId in BMS_list:
-                    self.battery_stats[self.batteryMasterId] = self.read_cell_details(ser, self.batteryMasterId)
-                    if self.battery_stats[self.batteryMasterId] is not False:
-                        reply = self.rollupBatteryBank(self.battery_stats)
-                        if reply != "Failed":
-                            return True
-                        else:
-                            return False
-                    else:
-                        return False
+            ser = self.open_serial()
+            while ser == False:
+                ser = self.open_serial()
+                break    
+            BMS_list = self.discovery_pack(ser)
+            if len(BMS_list) > 0 and self.batteryMasterId in BMS_list:
+                self.battery_stats[self.batteryMasterId] = self.read_cell_details(ser, self.batteryMasterId)
+                if self.battery_stats[self.batteryMasterId] is not False:
+                    reply = self.rollupBatteryBank(self.battery_stats)
+                    if reply != "Failed":
+                        return True
+            else:
+                return False
         except Exception:
             (
                 exception_type,
@@ -120,29 +124,40 @@ class EG4_LL(Battery):
                 f"Exception occurred: {repr(exception_object)} of type {exception_type} in {file} line #{line}"
             )
 
+    def read_battery_bank(self):
+        ser = self.open_serial()
+        for id in self.batteryPackId:
+            if self.battery_stats[id]["hw_version"] is None:
+                hw_reply = self.read_hw_details(ser, id)
+            else:
+                hw_reply = False
+            dataPacket = self.read_cell_details(ser, id)
+            if dataPacket is not False and hw_reply is not False:
+                self.battery_stats[id] = { **self.battery_stats[id], **dataPacket, **hw_reply }
+            elif dataPacket is not False:
+                self.battery_stats[id] = { **self.battery_stats[id], **dataPacket }
+            #sleep(self.serialCommandDelay)
+        result = self.rollupBatteryBank(self.battery_stats)
+        if self.statuslogger is True:
+            self.status_logger()
+        return True
+
     def get_settings(self):
         # After successful  connection get_settings will be call to set up the battery.
         # Return True if success, False for failure
         id = 1
         battery_stats = {}
-        with serial.Serial(self.port,
-                            baudrate=self.baud_rate,
-                            timeout=self.serialTimeout,
-                            parity=serial.PARITY_NONE,
-                            stopbits=serial.STOPBITS_ONE,
-                            bytesize=serial.EIGHTBITS) as ser:
-            for id in self.batteryPackId:
-                hw_reply = self.read_hw_details(ser, id)
-                cell_reply = self.read_cell_details(ser, id)
-                if hw_reply is not False and cell_reply is not False:
-                    self.battery_stats[id] = { **cell_reply, **hw_reply }
-                else:
-                    return False
-                id+=1
-
+        ser = self.open_serial()
+        for id in self.batteryPackId:
+            hw_reply = self.read_hw_details(ser, id)
+            cell_reply = self.read_cell_details(ser, id)
+            if hw_reply is not False and cell_reply is not False:
+                self.battery_stats[id] = { **cell_reply, **hw_reply }
+        if self.battery_stats[self.batteryMasterId] is False:
+                return False
         result = self.rollupBatteryBank(self.battery_stats)
         if self.statuslogger is True:
-            self.status_logger(self.battery_stats)
+            self.status_logger()
         return True
 
     def refresh_data(self):
@@ -161,20 +176,14 @@ class EG4_LL(Battery):
         return True
 
     def discovery_pack(self, ser):
-        bmsId = 1
         bmsChain = {}
         for Id in self.batteryPackId:
-            attempts = 0
-            while attempts < 1:
-                command = self.eg4CommandGen((Id.to_bytes(1, 'big') + self.hwCommandRoot))
-                reply = self.read_eg4ll_command(ser, command)
-                if reply is not False:
-                    bmsChain.update({Id : True})
-                    break
-                attempts += 1
-                #sleep(3)
-            bmsId += 1
-
+            command = self.eg4CommandGen((Id.to_bytes(1, 'big') + self.hwCommandRoot))
+            reply = self.read_eg4ll_command(ser, command)
+            if reply is not False:
+                bmsChain.update({Id : True})
+                break
+            sleep(.5)
         logger.info(f"Connected to BMS ID's: {pformat(bmsChain)}")
         return bmsChain
 
@@ -301,14 +310,14 @@ class EG4_LL(Battery):
 
         return True
 
-    def status_logger(self, batteryBankStats):
+    def status_logger(self):
         if self.battery_stats is not False or self.battery_stats[self.batteryMasterId] is not False:
             logger.info("===== HW Info =====")
-            logger.info(f"Battery Make/Model: {self.battery_stats[self.batteryMasterId]['hw_make']}")
-            logger.info(f"Hardware Version: {self.battery_stats[self.batteryMasterId]['hw_version']}")
+            logger.info(f'Battery Make/Model: {self.battery_stats[self.batteryMasterId]["hw_make"]}')
+            logger.info(f'Hardware Version: {self.battery_stats[self.batteryMasterId]["hw_version"]}')
             for bmsId in self.battery_stats:
                 if self.battery_stats[bmsId] is not False:
-                    logger.info(f"Serial Number: {self.battery_stats[bmsId]['hw_serial']}")
+                    logger.info(f'Serial Number: {self.battery_stats[bmsId]["hw_serial"]}')
             logger.info("===== Temp =====")
             logger.info(f"Temp 1: {self.temp1}c | Temp 2: {self.temp2}c | Temp Mos: {self.temp_mos}c")
             logger.info(f"Temp Max: {self.temp_max} | Temp Min: {self.temp_min}")
@@ -508,38 +517,15 @@ class EG4_LL(Battery):
             heater_state = True
         return heater_state
 
-    def read_battery_bank(self):
-        with serial.Serial(self.port,
-                baudrate=self.baud_rate,
-                timeout=self.serialTimeout,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE,
-                bytesize=serial.EIGHTBITS) as ser:
-            id = 1
-            for id in self.batteryPackId:
-                dataPacket = self.read_cell_details(ser, id)
-                if dataPacket is not False: # if True
-                    if not self.battery_stats[id]:
-                        self.battery_stats[id] = { **self.battery_stats[id], **dataPacket }
-                    else:
-                        self.battery_stats[id] = dataPacket
-                #else:
-                #    return False
-                id+=1
-        result = self.rollupBatteryBank(self.battery_stats)
-        if self.statuslogger is True:
-            self.status_logger(self.battery_stats)
-        return True
-
     def get_balancing(self):
         balancingSummery = []
-        for bmsId in self.batteryPackId:
-            if bmsId in self.battery_stats:
-                if self.battery_stats[bmsId] is not False:
-                    stateCode = self.status_balancing(self.battery_stats[bmsId]['cell_max'], self.battery_stats[bmsId]['cell_min'], "code")
-                    balancingSummery.append(stateCode)
-                else:
-                    return 0
+        bmsId = 1
+        for bmsId in self.battery_stats:
+            if self.battery_stats[bmsId] is not False:
+                stateCode = self.status_balancing(self.battery_stats[bmsId]['cell_max'], self.battery_stats[bmsId]['cell_min'], "code")
+                balancingSummery.append(stateCode)
+            else:
+                return 0
 
         balancingFinished = all(ele in balancingSummery for ele in [2])
         if balancingFinished is True:
@@ -556,8 +542,6 @@ class EG4_LL(Battery):
     def status_balancing(self, cell_max, cell_min, reply):
         balancer_current_delta = .40
         balancer_voltage = 3.40
-        balacing_state = 0
-        balacing_text = ""
         if (cell_max > balancer_voltage) and (round((cell_max - cell_min), 3) <= balancer_current_delta):
             balacing_state = 2
             balacing_text = "Finished"
@@ -628,26 +612,28 @@ class EG4_LL(Battery):
             else:
                 commandString = "UNKNOWN"
 
-            ser.reset_input_buffer()
-            ser.reset_output_buffer()
-            ser.write(command)
-            count = retry = 0
-            toread = ser.inWaiting()
-            while toread < reply_length:
-                sleep(0.035)
+            if ser.isOpen() == True:
+                ser.reset_input_buffer()
+                ser.reset_output_buffer()
+                ser.write(command)
+                count = retry = 0
                 toread = ser.inWaiting()
-                count += 1
-                if count > 25:
-                     logger.error(f'No Reply - BMS ID:{bmsId} Command-{commandString}')
-                     return False
-
-            res = ser.read(toread)
-            data = bytearray(res)
+                while toread < reply_length:
+                    sleep(0.035)
+                    toread = ser.inWaiting()
+                    count += 1
+                    if count > 25:
+                         logger.error(f'No Reply - BMS ID:{bmsId} Command-{commandString}')
+                         return False
+                res = ser.read(toread)
+                data = bytearray(res)
+            else: 
+                logger.error(f'ERROR - Serial Port Not Open!')
             if toread == reply_length:
                 return data
             else:
                 return False
-
+                logger.error(f'ERROR - Reply Not meet exspected length!')
         except serial.SerialException as e:
             logger.error(e)
             return False
