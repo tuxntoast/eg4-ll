@@ -67,7 +67,7 @@ class EG4_LL(Battery):
     batteryMasterId = int(batteryPackId[0])
     battery_stats = {}
     serialTimeout = 2
-    
+
     serialCommandDelay = 0
     poll_interval = len(batteryPackId) * 2000
     BATTERYTYPE = "EG4 LL"
@@ -99,9 +99,6 @@ class EG4_LL(Battery):
         try:
             self.battery_stats = {}
             ser = self.open_serial()
-            while ser == False:
-                ser = self.open_serial()
-                break    
             BMS_list = self.discovery_pack(ser)
             if len(BMS_list) > 0 and self.batteryMasterId in BMS_list:
                 self.battery_stats[self.batteryMasterId] = self.read_cell_details(ser, self.batteryMasterId)
@@ -130,7 +127,7 @@ class EG4_LL(Battery):
             if cell_reply is not False:
                 if id is self.battery_stats:
                     self.battery_stats[id] = { **self.battery_stats[id], **cell_reply }
-                else: 
+                else:
                     hw_reply = self.read_hw_details(ser, id)
                     if hw_reply is not False and cell_reply is not False:
                         self.battery_stats[id] = { **cell_reply, **hw_reply }
@@ -153,7 +150,7 @@ class EG4_LL(Battery):
                 if hw_reply is not False and cell_reply is not False:
                     self.battery_stats[id] = { **cell_reply, **hw_reply }
                     retry = False
-                else: 
+                else:
                     retry = True
         result = self.rollupBatteryBank(self.battery_stats)
         if self.statuslogger is True:
@@ -627,7 +624,7 @@ class EG4_LL(Battery):
                          return False
                 res = ser.read(toread)
                 data = bytearray(res)
-            else: 
+            else:
                 logger.error(f'ERROR - Serial Port Not Open!')
             if toread == reply_length:
                 return data
