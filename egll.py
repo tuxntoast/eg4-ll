@@ -69,7 +69,7 @@ class EG4_LL(Battery):
     serialTimeout = 2
 
     serialCommandDelay = 0
-    
+
     BATTERYTYPE = "EG4 LL"
     balacing_text = "UNKNOWN"
 
@@ -98,10 +98,10 @@ class EG4_LL(Battery):
         # Return True if success, False for failure
         try:
             self.battery_stats = {}
-            ser = self.open_serial()
-            BMS_list = self.discovery_pack(ser)
+            self.ser = self.open_serial()
+            BMS_list = self.discovery_pack()
             if len(BMS_list) > 0 and self.batteryMasterId in BMS_list:
-                self.battery_stats[self.batteryMasterId] = self.read_cell_details(ser, self.batteryMasterId)
+                self.battery_stats[self.batteryMasterId] = self.read_cell_details(self.batteryMasterId)
                 if self.battery_stats[self.batteryMasterId] is not False:
                     reply = self.rollupBatteryBank(self.battery_stats)
                     if reply != "Failed":
@@ -121,14 +121,13 @@ class EG4_LL(Battery):
             )
 
     def read_battery_bank(self):
-        ser = self.open_serial()
         for id in self.batteryPackId:
-            cell_reply = self.read_cell_details(ser, id)
+            cell_reply = self.read_cell_details(id)
             if cell_reply is not False:
                 if id is self.battery_stats:
                     self.battery_stats[id] = { **self.battery_stats[id], **cell_reply }
                 else:
-                    hw_reply = self.read_hw_details(ser, id)
+                    hw_reply = self.read_hw_details(id)
                     if hw_reply is not False and cell_reply is not False:
                         self.battery_stats[id] = { **cell_reply, **hw_reply }
         result = self.rollupBatteryBank(self.battery_stats)
@@ -142,11 +141,10 @@ class EG4_LL(Battery):
         id = 1
         battery_stats = {}
         retry = True
-        ser = self.open_serial()
         for id in self.batteryPackId:
             while retry is True:
-                hw_reply = self.read_hw_details(ser, id)
-                cell_reply = self.read_cell_details(ser, id)
+                hw_reply = self.read_hw_details(id)
+                cell_reply = self.read_cell_details(id)
                 if hw_reply is not False and cell_reply is not False:
                     self.battery_stats[id] = { **cell_reply, **hw_reply }
                     retry = False
@@ -172,22 +170,20 @@ class EG4_LL(Battery):
             return False
         return True
 
-    def discovery_pack(self, ser):
+    def discovery_pack(self):
         bmsChain = {}
         for Id in self.batteryPackId:
             command = self.eg4CommandGen((Id.to_bytes(1, 'big') + self.hwCommandRoot))
-            reply = self.read_eg4ll_command(ser, command)
+            reply = self.read_eg4ll_command(command)
             if reply is not False:
                 bmsChain.update({Id : True})
-                break
-            sleep(.5)
         logger.info(f"Connected to BMS ID's: {pformat(bmsChain)}")
         return bmsChain
 
-    def read_hw_details(self, ser, id):
+    def read_hw_details(self, id):
         battery = {}
         command = self.eg4CommandGen((id.to_bytes(1, 'big') + self.hwCommandRoot))
-        result = self.read_eg4ll_command(ser, command)
+        result = self.read_eg4ll_command(command)
         if result is False:
             return False
 
@@ -201,11 +197,11 @@ class EG4_LL(Battery):
 
         return battery
 
-    def read_cell_details(self, ser, id):
+    def read_cell_details(self, id):
 
         battery = {}
         command = self.eg4CommandGen((id.to_bytes(1, 'big') + self.cellCommandRoot))
-        packet = self.read_eg4ll_command(ser, command)
+        packet = self.read_eg4ll_command(command)
         if packet is False:
             return False
 
@@ -577,9 +573,7 @@ class EG4_LL(Battery):
         return True
 
     def eg4CommandGen(self, data: bytes):
-        '''
-        CRC-16-ModBus Algorithm
-        '''
+        # CRC-16-ModBus Algorithm
         poly = 0xA001
         crc = 0xFFFF
         for b in data:
@@ -595,7 +589,7 @@ class EG4_LL(Battery):
         return command
 
     # Read data from previously opened serial port
-    def read_eg4ll_command(self, ser, command):
+    def read_eg4ll_command(self, command):
         try:
             CommandHex = command.hex(":").upper()
             bmsId = int(CommandHex[0:2], 16)
@@ -612,23 +606,26 @@ class EG4_LL(Battery):
             else:
                 commandString = "UNKNOWN"
 
-            if ser.isOpen() == True:
-                ser.reset_input_buffer()
-                ser.reset_output_buffer()
-                ser.write(command)
+            if self.ser.isOpen() == True:
+                self.ser.reset_input_buffer()
+                self.ser.reset_output_buffer()
+                self.ser.write(command)
                 count = retry = 0
-                toread = ser.inWaiting()
+                toread = self.ser.inWaiting()
                 while toread < reply_length:
                     sleep(0.035)
-                    toread = ser.inWaiting()
+                    toread = self.ser.inWaiting()
                     count += 1
                     if count > 50:
                          logger.error(f'No Reply - BMS ID:{bmsId} Command-{commandString}')
                          return False
-                res = ser.read(toread)
+                res = self.ser.read(toread)
                 data = bytearray(res)
             else:
                 logger.error(f'ERROR - Serial Port Not Open!')
+                self.ser = self.open_serial()
+                return False
+
             if toread == reply_length:
                 return data
             else:
