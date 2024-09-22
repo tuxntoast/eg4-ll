@@ -11,7 +11,7 @@ from struct import unpack_from
 from time import sleep
 from pprint import pformat
 import serial, struct, sys
-import utils
+import utils, datetime
 
 #    Author: Pfitz /
 #    Date: 07 Sept 2024
@@ -49,12 +49,12 @@ class EG4_LL(Battery):
         super(EG4_LL, self).__init__(port, baud, address)
         self.cell_min_voltage = 0
         self.cell_max_voltage = None
-        #self.poll_interval = 5000
         self.type = self.BATTERYTYPE
         self.has_settings = 0
         self.reset_soc = 0
         self.soc_to_set = None
         self.runtime = 0  # TROUBLESHOOTING for no reply errors
+        self.poll_interval = (2 * 2000)
 
     statuslogger = False
     debug = False  # Set to true for wordy debugging in logs
@@ -69,7 +69,7 @@ class EG4_LL(Battery):
     serialTimeout = 2
 
     serialCommandDelay = 0
-    poll_interval = len(batteryPackId) * 2000
+    
     BATTERYTYPE = "EG4 LL"
     balacing_text = "UNKNOWN"
 
@@ -194,6 +194,7 @@ class EG4_LL(Battery):
         battery.update({"hw_make" : result[2:25].decode("utf-8")})
         battery.update({"hw_version" : result[27:33].decode("utf-8")})
         battery.update({"hw_serial" : (result[33:48].decode("utf-8")+"_"+str(id))})
+        battery.update({"hwLastPoll" : (datetime.datetime.now())})
         self.serial_number = battery["hw_serial"]
         self.version = battery["hw_make"]
         self.hardware_version = battery["hw_version"]
@@ -227,6 +228,7 @@ class EG4_LL(Battery):
         battery.update({"protection_hex" : packet[57:59].hex().upper()})
         battery.update({"error_hex" : packet[59:61].hex().upper()})
         battery.update({"heater_status" : packet[53:54].hex().upper()})
+        battery.update({"cellLastPoll" : (datetime.datetime.now())})
         startByte = 7
         endByte = 9
         cellId = 1
@@ -352,6 +354,7 @@ class EG4_LL(Battery):
                     logger.info(f"  === BMS ID-{bmsId} ===")
                     logger.info(f"  State: {self.lookup_status(self.battery_stats[bmsId]['status_hex'])}")
                     logger.info(f"  Pack Balancing: {self.battery_stats[bmsId]['balancing_text']}")
+                    logger.info(f"  Last Update: {self.battery_stats[bmsId]['cellLastPoll']}")
                     logger.info(f"  Pack Voltage: {round((self.battery_stats[bmsId]['cell_voltage']),3)}v | Pack Current: {round((self.battery_stats[bmsId]['current']),2)}a")
                     logger.info("    = Cell Stats =")
                     while cellId <= self.battery_stats[bmsId]['cell_count']:
