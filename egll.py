@@ -49,7 +49,7 @@ class EG4_LL(Battery):
         super(EG4_LL, self).__init__(port, baud, address)
         self.cell_min_voltage = 0
         self.cell_max_voltage = None
-        self.poll_interval = 5000
+        #self.poll_interval = 5000
         self.type = self.BATTERYTYPE
         self.has_settings = 0
         self.reset_soc = 0
@@ -65,12 +65,11 @@ class EG4_LL(Battery):
     #batteryPackId = utils.EG4_LL_BATTERY_PACK_IDS
     batteryPackId = [ 16, 1 ]
     batteryMasterId = int(batteryPackId[0])
-    batteryCount = len(batteryPackId)
     battery_stats = {}
-    serialTimeout = .3
+    serialTimeout = 2
     
     serialCommandDelay = 0
-    poll_interval = 5000
+    poll_interval = len(batteryPackId) * 2000
     BATTERYTYPE = "EG4 LL"
     balacing_text = "UNKNOWN"
 
@@ -127,16 +126,14 @@ class EG4_LL(Battery):
     def read_battery_bank(self):
         ser = self.open_serial()
         for id in self.batteryPackId:
-            if self.battery_stats[id]["hw_version"] is None:
-                hw_reply = self.read_hw_details(ser, id)
-            else:
-                hw_reply = False
-            dataPacket = self.read_cell_details(ser, id)
-            if dataPacket is not False and hw_reply is not False:
-                self.battery_stats[id] = { **self.battery_stats[id], **dataPacket, **hw_reply }
-            elif dataPacket is not False:
-                self.battery_stats[id] = { **self.battery_stats[id], **dataPacket }
-            #sleep(self.serialCommandDelay)
+            cell_reply = self.read_cell_details(ser, id)
+            if cell_reply is not False:
+                if id is self.battery_stats:
+                    self.battery_stats[id] = { **self.battery_stats[id], **cell_reply }
+                else: 
+                    hw_reply = self.read_hw_details(ser, id)
+                    if hw_reply is not False and cell_reply is not False:
+                        self.battery_stats[id] = { **cell_reply, **hw_reply }
         result = self.rollupBatteryBank(self.battery_stats)
         if self.statuslogger is True:
             self.status_logger()
@@ -147,14 +144,17 @@ class EG4_LL(Battery):
         # Return True if success, False for failure
         id = 1
         battery_stats = {}
+        retry = True
         ser = self.open_serial()
         for id in self.batteryPackId:
-            hw_reply = self.read_hw_details(ser, id)
-            cell_reply = self.read_cell_details(ser, id)
-            if hw_reply is not False and cell_reply is not False:
-                self.battery_stats[id] = { **cell_reply, **hw_reply }
-        if self.battery_stats[self.batteryMasterId] is False:
-                return False
+            while retry is True:
+                hw_reply = self.read_hw_details(ser, id)
+                cell_reply = self.read_cell_details(ser, id)
+                if hw_reply is not False and cell_reply is not False:
+                    self.battery_stats[id] = { **cell_reply, **hw_reply }
+                    retry = False
+                else: 
+                    retry = True
         result = self.rollupBatteryBank(self.battery_stats)
         if self.statuslogger is True:
             self.status_logger()
@@ -622,7 +622,7 @@ class EG4_LL(Battery):
                     sleep(0.035)
                     toread = ser.inWaiting()
                     count += 1
-                    if count > 25:
+                    if count > 50:
                          logger.error(f'No Reply - BMS ID:{bmsId} Command-{commandString}')
                          return False
                 res = ser.read(toread)
