@@ -590,6 +590,7 @@ class EG4_LL(Battery):
 
     # Read data from previously opened serial port
     def read_eg4ll_command(self, command):
+        attemptCount = 0
         try:
             CommandHex = command.hex(":").upper()
             bmsId = int(CommandHex[0:2], 16)
@@ -605,20 +606,27 @@ class EG4_LL(Battery):
                 commandString = "Config"
             else:
                 commandString = "UNKNOWN"
-
+             
             if self.ser.isOpen() == True:
-                self.ser.reset_input_buffer()
-                self.ser.reset_output_buffer()
-                self.ser.write(command)
-                count = retry = 0
-                toread = self.ser.inWaiting()
-                while toread < reply_length:
-                    sleep(0.035)
+                while attemptCount <= 3:
+                    self.ser.reset_input_buffer()
+                    self.ser.reset_output_buffer()
+                    self.ser.write(command)
+                    pollCount = 0
                     toread = self.ser.inWaiting()
-                    count += 1
-                    if count > 50:
-                         logger.error(f'No Reply - BMS ID:{bmsId} Command-{commandString}')
-                         return False
+                    attemptCount += 1
+                    while toread < reply_length:
+                        sleep(0.035)
+                        toread = self.ser.inWaiting()
+                        pollCount += 1
+                        if pollCount > 50:
+                            if attemptCount == 3 and cmdId == "00":
+                                logger.error(f'No Reply - BMS ID:{bmsId} Command-{commandString} - Attempt: {attemptCount}')
+                                return False
+                            elif cmdId != "00":
+                                return False
+                            else:
+                                break
                 res = self.ser.read(toread)
                 data = bytearray(res)
             else:
