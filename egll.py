@@ -70,7 +70,7 @@ class EG4_LL(Battery):
     bmsConfigCommandRoot = b"\x03\x00\x2D\x00\x5B"
 
     def unique_identifier(self):
-        return "4S12400190500001"
+        return self.serial_number 
 
     def open_serial(self):
         ser = serial.Serial(self.port,
@@ -93,6 +93,7 @@ class EG4_LL(Battery):
             self.ser = self.open_serial()
             BMS_list = self.discovery_pack()
             if len(BMS_list) > 0 and self.batteryMasterId in BMS_list:
+                self.serial_number = BMS_list[self.batteryMasterId]
                 self.battery_stats[self.batteryMasterId] = self.read_cell_details(self.batteryMasterId)
                 if self.battery_stats[self.batteryMasterId] is not False:
                     reply = self.rollupBatteryBank(self.battery_stats)
@@ -164,7 +165,8 @@ class EG4_LL(Battery):
             command = self.eg4CommandGen((Id.to_bytes(1, 'big') + self.hwCommandRoot))
             reply = self.read_eg4ll_command(command)
             if reply is not False:
-                bmsChain.update({Id : True})
+                serial = (reply[33:48].decode("utf-8")+"_"+str(Id))
+                bmsChain.update({Id : serial})
         logger.info(f"Connected to BMS ID's: {pformat(bmsChain)}")
         return bmsChain
 
@@ -581,7 +583,6 @@ class EG4_LL(Battery):
             bmsId = int(CommandHex[0:2], 16)
             cmdId = CommandHex[9:11]
 
-
             if cmdId == "69":
                 commandString = "Hardware"
                 reply_length = 51
@@ -607,10 +608,10 @@ class EG4_LL(Battery):
                         pollCount += 1
                         if pollCount > 50:
                             if attemptCount == 3 and cmdId == "00":
-                                logger.error(f'No Reply - BMS ID:{bmsId} Command-{commandString} - Attempt: {attemptCount}')
+                                logger.error(f'No Reply - BMS ID: {bmsId} Command: {commandString} - Attempt: {attemptCount}')
                                 return False
                             elif cmdId == "69":
-                                logger.error(f'No Reply - BMS ID:{bmsId} Command-{commandString}')
+                                logger.error(f'No Reply - BMS ID: {bmsId} Command: {commandString}')
                                 return False
                             elif cmdId != "00":
                                 return False
