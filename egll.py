@@ -14,13 +14,8 @@ import serial, struct, sys
 import utils, datetime
 
 #    Author: Pfitz /
-#    Date: 07 Sept 2024
+#    Date: 24 Sept 2024
 #    Version 2.0
-#     - Tested / Updated to work with dbus-SerialBattery v1.3.20240705
-#     - Added function get_max_temp() get_min_temp() - New calls by dbus-serial for adaptive charing
-#     - Updates to get_balancing() function - Looks at default value from BMS Settings to indicate when
-#       blancing mode would be active. Value are not pulled from the BMS config yet, and thus could be different
-#     - Command Checksum Code added - This enabled commands to be generated from a range of 1 to 64 for BMS ID
 #     - Starting to add support for BMS channing / more then one battery unit
 #        - Commands, and new function path
 #        - Connect and Poll all BMS units in Communcation Chain
@@ -28,20 +23,25 @@ import utils, datetime
 #       Tasks:
 #            - Passing all cell voltage to OS, but as different pack
 #                Issue: DVCC will add all cell to find charge voltage, this should be sum of all cell in pack
-#    Version 1.1
+#    Features: 
 #     Cell Voltage Implemented
 #     Hardware Name / Version / Serial Implemented
 #     Error / Warn / Protection Implemented
 #     SoH / SoC State Implemented
 #     Temp Implemented
+#     Balancing Support 
 #     Battery Voltage / Current
+#     Multi BMS communication chain support 
+#     Support for 12v/24v/48v BMS
 
 # Battery Tested on:
 # 2x Eg4 LL 12v 400 AH
-# One RS232 Cable to USB is needed when connecting to the Cerbo GX
-# A networking cable should be connected between each of the BMS RS485 Ports and the other BMS units
-# The master unit or first unit should have a Dip Switch ID set to 16 (12v) or 64 (24v and 48v)
-# All other BMS should have a Dip switch setting of 1 - 16 (12v) or 1 - 64 (24v and 48v)
+# One RS232 Cable to USB is needed to connect Cerbo GX to the master BMS
+# A Cat5/Cat6 cable can be used to connected the Master BMS RS485 secondary port to the 
+# first port of the BMS below it. BMS units can be "Daisy Chained" until your full bank is connected 
+#
+# The master unit or first unit should have a Dip Switch ID set to 16 or 64 depending on your unit and version
+# All other BMS in the communication chain should have a Dip switch setting of 1 - 15 or 1 - 63 depending on your units
 
 class EG4_LL(Battery):
     def __init__(self, port, baud, address):
