@@ -54,21 +54,14 @@ class EG4_LL(Battery):
         self.reset_soc = 0
         self.soc_to_set = None
         self.runtime = 0  # TROUBLESHOOTING for no reply errors
-        self.poll_interval = (2 * 2000)
 
     statuslogger = False
-    debug = False  # Set to true for wordy debugging in logs
-    debug_hex = False
-    debug_config_hex = False
-    debug_config = False
 
-    #batteryPackId = utils.EG4_LL_BATTERY_PACK_IDS
+    ##batteryPackId = utils.EG4_LL_BATTERY_PACK_IDS
     batteryPackId = [ 16, 1 ]
     batteryMasterId = int(batteryPackId[0])
     battery_stats = {}
-    serialTimeout = 2
-
-    serialCommandDelay = 0
+    serialTimeout = 2 
 
     BATTERYTYPE = "EG4 LL"
     balacing_text = "UNKNOWN"
@@ -124,7 +117,7 @@ class EG4_LL(Battery):
         for id in self.batteryPackId:
             cell_reply = self.read_cell_details(id)
             if cell_reply is not False:
-                if id is self.battery_stats:
+                if id in self.battery_stats:
                     self.battery_stats[id] = { **self.battery_stats[id], **cell_reply }
                 else:
                     hw_reply = self.read_hw_details(id)
@@ -141,6 +134,7 @@ class EG4_LL(Battery):
         id = 1
         battery_stats = {}
         retry = True
+        self.poll_interval = ( (len(self.batteryPackId) * self.serialTimeout)*1000)
         for id in self.batteryPackId:
             while retry is True:
                 hw_reply = self.read_hw_details(id)
@@ -272,26 +266,25 @@ class EG4_LL(Battery):
         if len(self.battery_stats) > 1:
             for bmsId in self.battery_stats:
                 if bmsId != self.batteryMasterId:
-                    if bmsId != False:
-                        if self.battery_stats[bmsId] is not False:
-                            self.voltage = round(((self.voltage + self.battery_stats[bmsId]["cell_voltage"]) / 2), 3)
-                            self.current = round((self.current + self.battery_stats[bmsId]["current"]), 3)
-                            self.capacity_remain = (self.capacity_remain + self.battery_stats[bmsId]["capacity_remain"])
-                            self.capacity = (self.capacity + self.battery_stats[bmsId]["capacity"])
-                            self.soc = (self.soc + self.battery_stats[bmsId]["soc"]) / 2
-                            self.soh = (self.soh + self.battery_stats[bmsId]["soh"]) / 2
-                            if self.battery_stats[bmsId]["cycles"] > self.cycles:
-                                self.cycles = self.battery_stats[bmsId]["cycles"]
-                            if self.battery_stats[bmsId]["temp1"] > self.temp1:
-                                self.temp1 = self.battery_stats[bmsId]["temp1"]
-                            if self.battery_stats[bmsId]["temp2"] > self.temp2:
-                                self.temp2 = self.battery_stats[bmsId]["temp2"]
-                            if self.battery_stats[bmsId]["temp_mos"] > self.temp_mos:
-                                self.temp_mos = self.battery_stats[bmsId]["temp_mos"]
-                            if self.battery_stats[bmsId]["cell_max"] > self.cell_max_voltage:
-                                self.cell_max_voltage = self.battery_stats[bmsId]["cell_max"]
-                            if self.battery_stats[bmsId]["cell_min"] > self.cell_min_voltage:
-                                self.cell_min_voltage = self.battery_stats[bmsId]["cell_min"]
+                    if self.battery_stats[bmsId] is not False:
+                        self.voltage = round(((self.voltage + self.battery_stats[bmsId]["cell_voltage"]) / 2), 3)
+                        self.current = round((self.current + self.battery_stats[bmsId]["current"]), 3)
+                        self.capacity_remain = (self.capacity_remain + self.battery_stats[bmsId]["capacity_remain"])
+                        self.capacity = (self.capacity + self.battery_stats[bmsId]["capacity"])
+                        self.soc = (self.soc + self.battery_stats[bmsId]["soc"]) / 2
+                        self.soh = (self.soh + self.battery_stats[bmsId]["soh"]) / 2
+                        if self.battery_stats[bmsId]["cycles"] > self.cycles:
+                            self.cycles = self.battery_stats[bmsId]["cycles"]
+                        if self.battery_stats[bmsId]["temp1"] > self.temp1:
+                            self.temp1 = self.battery_stats[bmsId]["temp1"]
+                        if self.battery_stats[bmsId]["temp2"] > self.temp2:
+                            self.temp2 = self.battery_stats[bmsId]["temp2"]
+                        if self.battery_stats[bmsId]["temp_mos"] > self.temp_mos:
+                            self.temp_mos = self.battery_stats[bmsId]["temp_mos"]
+                        if self.battery_stats[bmsId]["cell_max"] > self.cell_max_voltage:
+                            self.cell_max_voltage = self.battery_stats[bmsId]["cell_max"]
+                        if self.battery_stats[bmsId]["cell_min"] > self.cell_min_voltage:
+                            self.cell_min_voltage = self.battery_stats[bmsId]["cell_min"]
 
         self.temp_max = max(self.temp1, self.temp2)
         self.temp_min = min(self.temp1, self.temp2)
@@ -522,7 +515,6 @@ class EG4_LL(Battery):
                 balancingSummery.append(stateCode)
             else:
                 return 0
-
         balancingFinished = all(ele in balancingSummery for ele in [2])
         if balancingFinished is True:
             balacing_state = 2
@@ -583,7 +575,6 @@ class EG4_LL(Battery):
                     crc = ((crc >> 1) & 0xFFFF) ^ poly
                 else:
                     crc = ((crc >> 1) & 0xFFFF)
-
         reverseHex = struct.pack('<H', crc)
         command = data + reverseHex
         return command
@@ -595,6 +586,7 @@ class EG4_LL(Battery):
             CommandHex = command.hex(":").upper()
             bmsId = int(CommandHex[0:2], 16)
             cmdId = CommandHex[9:11]
+            
 
             if cmdId == "69":
                 commandString = "Hardware"
@@ -606,7 +598,7 @@ class EG4_LL(Battery):
                 commandString = "Config"
             else:
                 commandString = "UNKNOWN"
-             
+
             if self.ser.isOpen() == True:
                 while attemptCount <= 3:
                     self.ser.reset_input_buffer()
