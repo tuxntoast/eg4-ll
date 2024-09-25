@@ -15,11 +15,8 @@ import utils, datetime
 
 #    Author: Pfitz /
 #    Date: 24 Sept 2024
-#    Version 2.0
+#    Active Dev:
 #     - Starting to add support for BMS channing / more then one battery unit
-#        - Commands, and new function path
-#        - Connect and Poll all BMS units in Communcation Chain
-#        - Take in value from all BMS in chain, and summerize those to report to the Cerbo
 #       Tasks:
 #            - Passing all cell voltage to OS, but as different pack
 #                Issue: DVCC will add all cell to find charge voltage, this should be sum of all cell in pack
@@ -31,8 +28,10 @@ import utils, datetime
 #     Temp Implemented
 #     Balancing Support 
 #     Battery Voltage / Current
-#     Multi BMS communication chain support 
+#     Multi BMS communication Chain Support 
 #     Support for 12v/24v/48v BMS
+#     Support for Generation 1 & 2 -  EG4 Server Rack Batteries 
+#        - Has not been tested on the rack mount units. 
 
 # Battery Tested on:
 # 2x Eg4 LL 12v 400 AH
