@@ -13,31 +13,31 @@ from pprint import pformat
 import serial, struct, sys
 import utils, datetime
 
-#    Author: Pfitz /
+#    Author: Pfitz
 #    Date: 24 Sept 2024
 #    Active Dev:
 #     - Starting to add support for BMS channing / more then one battery unit
 #       Tasks:
 #            - Passing all cell voltage to OS, but as different pack
 #                Issue: DVCC will add all cell to find charge voltage, this should be sum of all cell in pack
-#    Features: 
+#    Features:
 #     Cell Voltage Implemented
 #     Hardware Name / Version / Serial Implemented
 #     Error / Warn / Protection Implemented
 #     SoH / SoC State Implemented
 #     Temp Implemented
-#     Balancing Support 
+#     Balancing Support
 #     Battery Voltage / Current
-#     Multi BMS communication Chain Support 
+#     Multi BMS communication Chain Support
 #     Support for 12v/24v/48v BMS
-#     Support for Generation 1 & 2 -  EG4 Server Rack Batteries 
-#        - Has not been tested on the rack mount units. 
+#     Support for Generation 1 & 2 -  EG4 Server Rack Batteries
+#        - Has not been tested on the rack mount units.
 
 # Battery Tested on:
 # 2x Eg4 LL 12v 400 AH
 # One RS232 Cable to USB is needed to connect Cerbo GX to the master BMS
-# A Cat5/Cat6 cable can be used to connected the Master BMS RS485 secondary port to the 
-# first port of the BMS below it. BMS units can be "Daisy Chained" until your full bank is connected 
+# A Cat5/Cat6 cable can be used to connected the Master BMS RS485 secondary port to the
+# first port of the BMS below it. BMS units can be "Daisy Chained" until your full bank is connected
 #
 # The master unit or first unit should have a Dip Switch ID set to 16 or 64 depending on your unit and version
 # All other BMS in the communication chain should have a Dip switch setting of 1 - 15 or 1 - 63 depending on your units
@@ -60,7 +60,7 @@ class EG4_LL(Battery):
     batteryPackId = [ 16, 1 ]
     batteryMasterId = int(batteryPackId[0])
     battery_stats = {}
-    serialTimeout = 2 
+    serialTimeout = 2
 
     BATTERYTYPE = "EG4 LL"
     balacing_text = "UNKNOWN"
@@ -135,17 +135,12 @@ class EG4_LL(Battery):
         retry = True
         self.poll_interval = ( (len(self.batteryPackId) * self.serialTimeout)*1000)
         for id in self.batteryPackId:
-            while retry is True:
-                hw_reply = self.read_hw_details(id)
-                cell_reply = self.read_cell_details(id)
-                if hw_reply is not False and cell_reply is not False:
-                    self.battery_stats[id] = { **cell_reply, **hw_reply }
-                    retry = False
-                else:
-                    retry = True
+            cell_reply = self.read_cell_details(id)
+            hw_reply = self.read_hw_details(id)
+            if hw_reply is not False and cell_reply is not False:
+                self.battery_stats[id] = { **cell_reply, **hw_reply }
         result = self.rollupBatteryBank(self.battery_stats)
-        if self.statuslogger is True:
-            self.status_logger()
+        self.status_logger()
         return True
 
     def refresh_data(self):
@@ -585,7 +580,7 @@ class EG4_LL(Battery):
             CommandHex = command.hex(":").upper()
             bmsId = int(CommandHex[0:2], 16)
             cmdId = CommandHex[9:11]
-            
+
 
             if cmdId == "69":
                 commandString = "Hardware"
@@ -613,6 +608,9 @@ class EG4_LL(Battery):
                         if pollCount > 50:
                             if attemptCount == 3 and cmdId == "00":
                                 logger.error(f'No Reply - BMS ID:{bmsId} Command-{commandString} - Attempt: {attemptCount}')
+                                return False
+                            elif cmdId == "69":
+                                logger.error(f'No Reply - BMS ID:{bmsId} Command-{commandString}')
                                 return False
                             elif cmdId != "00":
                                 return False
