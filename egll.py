@@ -70,7 +70,7 @@ class EG4_LL(Battery):
     bmsConfigCommandRoot = b"\x03\x00\x2D\x00\x5B"
 
     def unique_identifier(self):
-        return self.serial_number 
+        return "4S12400190500001"
 
     def open_serial(self):
         ser = serial.Serial(self.port,
@@ -94,11 +94,7 @@ class EG4_LL(Battery):
             BMS_list = self.discovery_pack()
             if len(BMS_list) > 0 and self.batteryMasterId in BMS_list:
                 self.serial_number = BMS_list[self.batteryMasterId]
-                self.battery_stats[self.batteryMasterId] = self.read_cell_details(self.batteryMasterId)
-                if self.battery_stats[self.batteryMasterId] is not False:
-                    reply = self.rollupBatteryBank(self.battery_stats)
-                    if reply != "Failed":
-                        return True
+                return True
             else:
                 return False
         except Exception:
@@ -135,12 +131,9 @@ class EG4_LL(Battery):
         battery_stats = {}
         retry = True
         self.poll_interval = ( (len(self.batteryPackId) * self.serialTimeout)*1000)
-        for id in self.batteryPackId:
-            cell_reply = self.read_cell_details(id)
-            hw_reply = self.read_hw_details(id)
-            if hw_reply is not False and cell_reply is not False:
-                self.battery_stats[id] = { **cell_reply, **hw_reply }
-        result = self.rollupBatteryBank(self.battery_stats)
+        result = self.read_battery_bank()
+        if result is not True:
+            return False
         self.status_logger()
         return True
 
@@ -233,9 +226,12 @@ class EG4_LL(Battery):
         battery.update({"cell_max" : max(cellVoltageList)})
         battery.update({"cell_min" : min(cellVoltageList)})
         balancing_code = self.status_balancing(battery["cell_max"], battery["cell_min"], "code")
+        if balancing_code is not False:
+            battery.update({"balancing_code" : balancing_code})
+
         balancing_text = self.status_balancing(battery["cell_max"], battery["cell_min"], "text")
-        battery.update({"balancing_code" : balancing_code})
-        battery.update({"balancing_text" : balancing_text})
+        if balancing_text is not False:
+            battery.update({"balancing_text" : balancing_text})
         return battery
 
     def rollupBatteryBank(self, batteryBankStats):
@@ -523,9 +519,11 @@ class EG4_LL(Battery):
             self.balacing_text = "Off"
         return balacing_state
 
-    def status_balancing(self, cell_max, cell_min, reply):
+    def status_balancing(self, cell_max, cell_min, output):
         balancer_current_delta = .40
         balancer_voltage = 3.40
+        balacing_state = 0
+        balacing_text = "Off"
         if (cell_max > balancer_voltage) and (round((cell_max - cell_min), 3) <= balancer_current_delta):
             balacing_state = 2
             balacing_text = "Finished"
@@ -533,13 +531,10 @@ class EG4_LL(Battery):
             if cell_max >= balancer_voltage:
                 balacing_state = 1
                 balacing_text = "Balancing"
-        else:
-            balacing_state = 0
-            balacing_text = "Off"
 
-        if reply == "text":
+        if output == "text":
             return balacing_text
-        elif reply == "code":
+        elif output == "code":
             return balacing_state
         else:
             return False
@@ -582,6 +577,7 @@ class EG4_LL(Battery):
             CommandHex = command.hex(":").upper()
             bmsId = int(CommandHex[0:2], 16)
             cmdId = CommandHex[9:11]
+
 
             if cmdId == "69":
                 commandString = "Hardware"
