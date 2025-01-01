@@ -16,7 +16,7 @@ import utils, datetime
 #    Author: Pfitz
 #    Date: 26 Dec 2024
 #    Features:
-#     UI reporting for all BMS in Communication chain 
+#     UI reporting for all BMS in Communication chain
 #     Multi BMS communication Chain Support
 #     Cell Voltage Implemented
 #     Hardware Name / Version / Serial Implemented
@@ -31,6 +31,7 @@ import utils, datetime
 
 # Battery Tested on:
 # 2x Eg4 LL 12v 400 AH
+# Venus OS v3.52 running on Cerbo GX - dbus-serialbattery v1.5.20241215
 # One RS232 Cable to USB is needed to connect Cerbo GX to the master BMS
 # A Cat5/Cat6 cable can be used to connected the Master BMS RS485 secondary port to the
 # first port of the BMS below it. BMS units can be "Daisy Chained" until your full bank is connected
@@ -44,21 +45,18 @@ class EG4_LL(Battery):
         super(EG4_LL, self).__init__(port, baud, address)
         self.cell_min_voltage = 0
         self.cell_max_voltage = None
-        self.type = self.BATTERYTYPE
         self.has_settings = 0
         self.reset_soc = 0
         self.soc_to_set = None
-        self.charge_fet = True
-        self.discharge_fet = True
-        self.Id = int.from_bytes(self.address, "big")
+        self.type = self.BATTERYTYPE
         self.runtime = 0  # TROUBLESHOOTING for no reply errors
 
     statuslogger = False
-    
+
     battery_stats = {}
     serialTimeout = 2
 
-    BATTERYTYPE = "EG4 LL"
+    BATTERYTYPE = "EG4-LL"
 
     hwCommandRoot = b"\x03\x00\x69\x00\x17"
     cellCommandRoot = b"\x03\x00\x00\x00\x27"
@@ -66,6 +64,10 @@ class EG4_LL(Battery):
 
     def unique_identifier(self):
         return self.serial_number
+
+    def custom_name(self):
+        self.custom_name = self.BATTERYTYPE+"_ID:"+str(self.Id)
+        return self.custom_name
 
     def open_serial(self):
         ser = serial.Serial(self.port,
@@ -89,14 +91,15 @@ class EG4_LL(Battery):
             self.ser = self.open_serial()
             BMS_list = self.discovery_pack(self.Id)
             if BMS_list is False:
-                return False 
+                return False
             else:
                 logger.info(f"Connected to BMS ID: {pformat(BMS_list)}")
                 self.poll_interval = ((self.serialTimeout)*1000)
+                self.custom_field = self.BATTERYTYPE+":"+str(self.Id)
                 cell_poll = self.read_battery_bank()
-                if cell_poll is True:
+                if cell_poll is not False:
                     self.status_logger()
-                    return True 
+                    return True
                 else:
                     return False
         except Exception:
@@ -118,10 +121,12 @@ class EG4_LL(Battery):
                 self.battery_stats[self.Id] = { **self.battery_stats[self.Id], **cell_reply }
             else:
                 hw_reply = self.read_hw_details(self.Id)
-                if hw_reply is not False and cell_reply is not False:
+                if hw_reply is not False:
                     self.battery_stats[self.Id] = { **cell_reply, **hw_reply }
-                else: 
+                else:
                     return False
+        else:
+            return False
         result = self.reportBatteryBank()
         if self.statuslogger is True:
             self.status_logger()
@@ -162,7 +167,7 @@ class EG4_LL(Battery):
             return bmsChain
         else:
             return False
-        
+
 
     def read_hw_details(self, id):
         battery = {}
@@ -226,7 +231,7 @@ class EG4_LL(Battery):
         battery.update({"cell_voltage" : cellVoltageSum})
         battery.update({"cell_max" : max(cellVoltageList)})
         battery.update({"cell_min" : min(cellVoltageList)})
-        
+
         balancing_code = self.balancingStat(min(cellVoltageList), max(cellVoltageList))
         battery.update({"balancing_code" : balancing_code})
         if balancing_code == 2:
@@ -235,13 +240,12 @@ class EG4_LL(Battery):
             battery.update({"balancing_text" : "Balancing"})
         elif balancing_code == 0:
             battery.update({"balancing_text" : "Off"})
-        else: 
+        else:
             battery.update({"balancing_text" : "UNKNOWN"})
-            
+
         return battery
 
     def reportBatteryBank(self):
-    
         #logger.info(f"batteryBankStats: {pformat(batteryBankStats)}")
         self.voltage = self.battery_stats[self.Id]["cell_voltage"]
         self.current = self.battery_stats[self.Id]["current"]
@@ -257,19 +261,6 @@ class EG4_LL(Battery):
         self.cell_max_voltage = self.battery_stats[self.Id]["cell_max"]
         self.lookup_protection(self.battery_stats)
         self.lookup_warning(self.battery_stats)
-
-        self.voltage = round(((self.voltage + self.battery_stats[self.Id]["cell_voltage"]) / 2), 3)
-        self.current = round((self.current + self.battery_stats[self.Id]["current"]), 3)
-        self.capacity_remain = self.battery_stats[self.Id]["capacity_remain"]
-        self.capacity = self.battery_stats[self.Id]["capacity"]
-        self.soc = self.battery_stats[self.Id]["soc"]
-        self.soh = self.battery_stats[self.Id]["soh"]
-        self.cycles = self.battery_stats[self.Id]["cycles"]
-        self.temp1 = self.battery_stats[self.Id]["temp1"]
-        self.temp2 = self.battery_stats[self.Id]["temp2"]        
-        self.temp_mos = self.battery_stats[self.Id]["temp_mos"]        
-        self.cell_max_voltage = self.battery_stats[self.Id]["cell_max"]
-        self.cell_min_voltage = self.battery_stats[self.Id]["cell_min"]
 
         self.temp_max = max(self.temp1, self.temp2)
         self.temp_min = min(self.temp1, self.temp2)
@@ -292,15 +283,6 @@ class EG4_LL(Battery):
         logger.info(f"Temp 1: {self.temp1}c | Temp 2: {self.temp2}c | Temp Mos: {self.temp_mos}c")
         logger.info(f"Temp Max: {self.temp_max} | Temp Min: {self.temp_min}")
         logger.info(f"Heater {self.Id} Status: {self.lookup_heater(self.battery_stats[self.Id]['heater_status'])}")
-        #logger.info("===== DVCC State =====")
-        #logger.info(f"DVCC Charger Mode: {self.charge_mode}")
-        #logger.info(f"DVCC Charge Voltage: {self.control_voltage}v")
-        #logger.info(
-        #    f"Charge Current: {self.control_charge_current} | Discharge Current: {self.control_discharge_current}"
-        #)
-        #logger.info(
-        #    f"Charge Limit: {self.charge_limitation} | Discharge Limit: {self.discharge_limitation}"
-        #)
         logger.info("===== BMS Data =====")
         logger.info("Voltage: "
             + "%.3fv" % self.voltage
@@ -331,7 +313,6 @@ class EG4_LL(Battery):
         return True
 
     def lookup_warning(self, batteryBankStats):
-
         unique_codes = []
         if batteryBankStats[self.Id]["warning_hex"] not in unique_codes:
             unique_codes.append(batteryBankStats[self.Id]["warning_hex"])
@@ -342,15 +323,19 @@ class EG4_LL(Battery):
             elif code == "0001":
                 warning_alarm += "Warning: "+code+" - Pack Over Voltage"
                 self.voltage_high = 1
+                self.charge_fet = False
             elif code == "0002":
                 warning_alarm += "Warning: "+code+" - Cell Over Voltage"
                 self.voltage_cell_high = 1
+                self.charge_fet = False
             elif code == "0004":
                 warning_alarm += "Warning: "+code+" - Pack Under Voltage"
                 self.voltage_low = 1
+                self.discharge_fet = False
             elif code == "0008":
                 warning_alarm += "Warning: "+code+" - Cell Under Voltage"
                 self.voltage_cell_low = 1
+                self.discharge_fet = False
             elif code == "0010":
                 warning_alarm += "Warning: "+code+" - Charge Over Current"
                 self.current_over = 1
@@ -375,6 +360,7 @@ class EG4_LL(Battery):
             elif code == "1000":
                 warning_alarm += "Warning: "+code+" - Low Capacity"
                 self.soc_low = 1
+                self.discharge_fet = False
             elif code == "2000":
                 warning_alarm += "Warning: "+code+" - Float Stoped"
             elif code == "4000":
@@ -382,7 +368,8 @@ class EG4_LL(Battery):
                 self.internal_failure = 1
             else:
                 warning_alarm += "Warning: "+code+" - UNKNOWN"
-
+            if code != "0000":
+                logger.error(f"{warning_alarm}")
         return warning_alarm
 
     def lookup_protection(self, batteryBankStats):
@@ -393,18 +380,24 @@ class EG4_LL(Battery):
         for code in unique_codes:
             if code == "0000":
                 protection_alarm += "No Protection Events - "+code
+                self.charge_fet = True
+                self.discharge_fet = True
             elif code == "0001":
                 protection_alarm += "Protection: "+code+" - Pack Over Voltage"
                 self.voltage_high = 2
+                self.charge_fet = False
             elif code == "0002":
                 protection_alarm += "Protection: "+code+" - Cell Over Voltage"
                 self.voltage_cell_high = 2
+                self.charge_fet = False
             elif code == "0004":
                 protection_alarm += "Protection: "+code+" - Pack Under Voltage"
                 self.voltage_low = 2
+                self.discharge_fet = False
             elif code == "0008":
                 protection_alarm += "Protection: "+code+" - Cell Under Voltage"
                 self.voltage_cell_low = 2
+                self.discharge_fet = False
             elif code == "0010":
                 protection_alarm += "Protection: "+code+" - Charge Over Current"
                 self.current_over = 2
@@ -414,28 +407,40 @@ class EG4_LL(Battery):
             elif code == "0040":
                 protection_alarm += "Protection: "+code+" - High Ambient Temp"
                 self.temp_high_internal = 2
+                self.charge_fet = False
             elif code == "0080":
                 protection_alarm += "Protection: "+code+" - Mosfets High Temp"
                 self.temp_high_internal = 2
+                self.charge_fet = False
             elif code == "0100":
                 protection_alarm += "Protection: "+code+" - Charge Over Temp"
                 self.temp_high_charge = 2
+                self.charge_fet = False
+                self.discharge_fet = False
             elif code == "0200":
                 protection_alarm += "Protection: "+code+" - Discharge Over Temp"
                 self.temp_high_discharge = 2
+                self.charge_fet = False
+                self.discharge_fet = False
             elif code == "0400":
                 protection_alarm += "Protection: "+code+" - Charge Under Temp"
                 self.temp_low_charge = 2
+                self.charge_fet = False
             elif code == "0800":
                 protection_alarm += "Protection: "+code+" - Discharge Under Temp"
                 self.temp_low_charge = 2
+                self.discharge_fet = False
             elif code == "1000":
                 protection_alarm += "Protection: "+code+" - Low Capacity"
                 self.soc_low = 2
+                self.discharge_fet = False
             elif code == "2000":
                 protection_alarm += "Protection: "+code+" - Discharge SC"
+                self.discharge_fet = False
             else:
                 protection_alarm += "UNKNOWN: "+code
+            if code != "0000":
+                logger.error(f"{protection_alarm}")
         return protection_alarm
 
     def lookup_error(self, batteryBankStats):
@@ -456,6 +461,8 @@ class EG4_LL(Battery):
                 error_alarm = f"Error: "+code+" - Cell Unbalanced"
             else:
                 error_alarm = "UNKNOWN: "+code
+            if code != "0000":
+                logger.error(f"{error_alarm}")
         return error_alarm
 
     def lookup_status(self, status_hex):
@@ -483,10 +490,16 @@ class EG4_LL(Battery):
         balancer_voltage = 3.40
         if (self.battery_stats[self.Id]['cell_max'] > balancer_voltage) and (round((self.battery_stats[self.Id]['cell_max'] - self.battery_stats[self.Id]['cell_min']), 3) <= balancer_current_delta):
             balacing_state = 2
+            self.balance_fet = False
+            self.balancing = False
         elif (self.battery_stats[self.Id]['cell_max'] - self.battery_stats[self.Id]['cell_min']) >= balancer_current_delta:
             balacing_state = 1
+            self.balance_fet = True
+            self.balancing = True
         else:
             balacing_state = 0
+            self.balance_fet = False
+            self.balancing = False
         return balacing_state
 
     def balancingStat(self, cellMin, cellMax):
@@ -567,7 +580,7 @@ class EG4_LL(Battery):
                                 logger.error(f'No Reply - BMS ID: {bmsId} Command: {commandString} - Attempt: {attemptCount}')
                                 return False
                             elif cmdId == "69":
-                                #logger.error(f'No Reply - BMS ID: {bmsId} Command: {commandString}')
+                                logger.error(f'No Reply - BMS ID: {bmsId} Command: {commandString}')
                                 return False
                             elif cmdId != "00":
                                 return False
