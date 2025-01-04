@@ -4,8 +4,6 @@
 # Added by https://github.com/tuxntoast
 
 from battery import Battery, Cell
-
-# from batters import Protection
 from utils import logger
 from struct import unpack_from
 from time import sleep
@@ -94,7 +92,7 @@ class EG4_LL(Battery):
                 return False
             else:
                 logger.info(f"Connected to BMS ID: {pformat(BMS_list)}")
-                self.poll_interval = ((self.serialTimeout)*1000)
+                self.poll_interval = (((self.serialTimeout)*1000)*3)
                 self.custom_field = self.BATTERYTYPE+":"+str(self.Id)
                 cell_poll = self.read_battery_bank()
                 if cell_poll is not False:
@@ -133,7 +131,7 @@ class EG4_LL(Battery):
         return True
 
     def get_settings(self):
-        # After successful  connection get_settings will be call to set up the battery.
+        # After successful connection get_settings will be call to set up the battery.
         # Return True if success, False for failure
         result = self.read_battery_bank()
         if result is not True:
@@ -142,9 +140,7 @@ class EG4_LL(Battery):
         return True
 
     def refresh_data(self):
-        # call all functions that will refresh the battery data.
-        # This will be called for every iteration (1 second)
-        # Return True if success, False for failure
+        # This will be called for every iteration
         result = self.read_battery_bank()
         if result is False:
             return False
@@ -246,7 +242,6 @@ class EG4_LL(Battery):
         return battery
 
     def reportBatteryBank(self):
-        #logger.info(f"batteryBankStats: {pformat(batteryBankStats)}")
         self.voltage = self.battery_stats[self.Id]["cell_voltage"]
         self.current = self.battery_stats[self.Id]["current"]
         self.capacity_remain = self.battery_stats[self.Id]["capacity_remain"]
@@ -261,6 +256,7 @@ class EG4_LL(Battery):
         self.cell_max_voltage = self.battery_stats[self.Id]["cell_max"]
         self.lookup_protection(self.battery_stats)
         self.lookup_warning(self.battery_stats)
+        self.lookup_error(self.battery_stats)
 
         self.temp_max = max(self.temp1, self.temp2)
         self.temp_min = min(self.temp1, self.temp2)
@@ -575,6 +571,8 @@ class EG4_LL(Battery):
                         sleep(0.035)
                         toread = self.ser.inWaiting()
                         pollCount += 1
+                        if toread == reply_length:
+                            break
                         if pollCount > 50:
                             if attemptCount == 3 and cmdId == "00":
                                 logger.error(f'No Reply - BMS ID: {bmsId} Command: {commandString} - Attempt: {attemptCount}')
@@ -586,6 +584,8 @@ class EG4_LL(Battery):
                                 return False
                             else:
                                 break
+                    if toread == reply_length:
+                        break
                 res = self.ser.read(toread)
                 data = bytearray(res)
             else:
@@ -596,7 +596,7 @@ class EG4_LL(Battery):
             if toread == reply_length:
                 return data
             else:
-                logger.error(f'ERROR - Reply Not meet exspected length!')
+                logger.error(f'ERROR - Reply not meet expected length! BMS ID: {bmsId} Command: {commandString}')
                 return False
         except serial.SerialException as e:
             logger.error(e)
