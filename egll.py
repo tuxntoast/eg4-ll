@@ -3,6 +3,7 @@
 # Notes
 # Added by https://github.com/tuxntoast
 
+# from batters import Protection
 from battery import Battery, Cell
 from utils import logger
 from struct import unpack_from
@@ -12,24 +13,24 @@ import serial, struct, sys
 import utils, datetime
 
 #    Author: Pfitz
-#    Date: 26 Dec 2024
+#    Date: 07 Mar 2025
 #    Features:
 #     UI reporting for all BMS in Communication chain
 #     Multi BMS communication Chain Support
 #     Cell Voltage Implemented
 #     Hardware Name / Version / Serial Implemented
 #     Error / Warn / Protection Implemented
+#        - Looks like the Code might not be totally correct OR the BMS has
+#          moments where a random is returned but only during one BMS poll
 #     SoH / SoC State Implemented
 #     Temp Implemented
 #     Balancing Support
 #     Battery Voltage / Current
 #     Support for 12v/24v/48v BMS
-#     Support for Generation 1 & 2 -  EG4 Server Rack Batteries
-#        - Has not been tested on the rack mount units.
 
 # Battery Tested on:
 # 2x Eg4 LL 12v 400 AH
-# Venus OS v3.52 running on Cerbo GX - dbus-serialbattery v1.5.20241215
+# Venus OS v3.52 running on Cerbo GX - dbus-serialbattery v2.0.20250228dev
 # One RS232 Cable to USB is needed to connect Cerbo GX to the master BMS
 # A Cat5/Cat6 cable can be used to connected the Master BMS RS485 secondary port to the
 # first port of the BMS below it. BMS units can be "Daisy Chained" until your full bank is connected
@@ -50,6 +51,9 @@ class EG4_LL(Battery):
         self.runtime = 0  # TROUBLESHOOTING for no reply errors
 
     statuslogger = False
+    # When BMS returns a Warning/Error/Protection Alarm, Print that Error code
+    # and BMS Stats to Driver Log file. This would help a user figure out what might be happening
+    protectionLogger = False
 
     battery_stats = {}
     serialTimeout = 2
@@ -80,9 +84,6 @@ class EG4_LL(Battery):
             return False
 
     def test_connection(self):
-        # call a function that will connect to the battery, send a command and retrieve the result.
-        # The result or call should be unique to this BMS. Battery name or version, etc.
-        # Return True if success, False for failure
         try:
             self.battery_stats = {}
             self.Id = int.from_bytes(self.address, "big")
@@ -131,8 +132,6 @@ class EG4_LL(Battery):
         return True
 
     def get_settings(self):
-        # After successful connection get_settings will be call to set up the battery.
-        # Return True if success, False for failure
         result = self.read_battery_bank()
         if result is not True:
             return False
@@ -189,7 +188,6 @@ class EG4_LL(Battery):
         packet = self.read_eg4ll_command(command)
         if packet is False:
             return False
-
         battery.update({"voltage" : int.from_bytes(packet[3:5], "big") / 100})
         battery.update({"current" : int.from_bytes(packet[5:7], "big", signed=True) / 100})
         battery.update({"capacity_remain" : int.from_bytes(packet[45:47], "big")})
@@ -198,13 +196,13 @@ class EG4_LL(Battery):
         battery.update({"soc" : int.from_bytes(packet[51:53], "big")})
         battery.update({"soh" : int.from_bytes(packet[49:51], "big")})
         battery.update({"cycles" : int.from_bytes(packet[61:65], "big")})
-        battery.update({"temp1" : int.from_bytes(packet[39:41], "big", signed=True)})
-        battery.update({"temp2" : int.from_bytes(packet[69:70], "big", signed=True)})
-        battery.update({"temp_mos" : int.from_bytes(packet[70:71], "big", signed=True)})
+        battery.update({"temp1" : int.from_bytes(packet[69:70], "big", signed=True)})
+        battery.update({"temp2" : int.from_bytes(packet[70:71], "big", signed=True)})
+        battery.update({"temp_mos" : int.from_bytes(packet[39:41], "big", signed=True)})
         battery.update({"temp_max" : max(battery["temp1"], battery["temp2"])})
         battery.update({"temp_min" : min(battery["temp1"], battery["temp2"])})
         battery.update({"cell_count" : int.from_bytes(packet[75:77], "big")})
-        battery.update({"status_hex" : packet[54:55].hex().upper()})
+        battery.update({"status_hex" : packet[54:56].hex().upper()})
         battery.update({"warning_hex" : packet[55:57].hex().upper()})
         battery.update({"protection_hex" : packet[57:59].hex().upper()})
         battery.update({"error_hex" : packet[59:61].hex().upper()})
@@ -270,6 +268,30 @@ class EG4_LL(Battery):
 
         return True
 
+    def bms_stats(self):
+        logger.info("== Pack Details =====")
+        logger.info(f"  == BMS ID-{self.Id} ===")
+        logger.info(f"    == Temp ==")
+        logger.info(f"      Temp 1: {self.temp1}c | Temp 2: {self.temp2}c | Temp Mos: {self.temp_mos}c")
+        logger.info("     == BMS Data ==")
+        logger.info("       Voltage: "
+            + "%.3fv" % self.voltage
+            + " | Current: "
+            + str(self.current)
+            + "A"
+        )
+        logger.info(f"       Capacity Left: {self.capacity_remain} of {self.capacity} AH")
+        logger.info(f"       Balancing State: {self.battery_stats[self.Id]['balancing_text']}")
+        logger.info(f"       State: {self.lookup_status(self.battery_stats[self.Id]['status_hex'])}")
+        logger.info(f"       Last Update: {self.battery_stats[self.Id]['cellLastPoll']}")
+        logger.info("     == Cell Stats ==")
+        cellId = 1
+        while cellId <= self.battery_stats[self.Id]['cell_count']:
+            logger.info(f"       Cell {str(cellId)} Voltage: {self.battery_stats[self.Id]['cell'+str(cellId)]}")
+            cellId += 1
+        logger.info(f"       Cell Max/Min/Diff: ({self.battery_stats[self.Id]['cell_max']}/{self.battery_stats[self.Id]['cell_min']}/{round((self.battery_stats[self.Id]['cell_max'] - self.battery_stats[self.Id]['cell_min']), 3)})v")
+        return True
+
     def status_logger(self):
         logger.info("===== HW Info =====")
         logger.info(f'Battery Make/Model: {self.battery_stats[self.Id]["hw_make"]}')
@@ -309,169 +331,177 @@ class EG4_LL(Battery):
         return True
 
     def lookup_warning(self, batteryBankStats):
-        unique_codes = []
-        if batteryBankStats[self.Id]["warning_hex"] not in unique_codes:
-            unique_codes.append(batteryBankStats[self.Id]["warning_hex"])
+        code = batteryBankStats[self.Id]["warning_hex"]
         warning_alarm = ""
-        for code in unique_codes:
-            if code == "0000":
-                warning_alarm += "No Warnings - "+code
-            elif code == "0001":
-                warning_alarm += "Warning: "+code+" - Pack Over Voltage"
-                self.voltage_high = 1
-                self.charge_fet = False
-            elif code == "0002":
-                warning_alarm += "Warning: "+code+" - Cell Over Voltage"
-                self.voltage_cell_high = 1
-                self.charge_fet = False
-            elif code == "0004":
-                warning_alarm += "Warning: "+code+" - Pack Under Voltage"
-                self.voltage_low = 1
-                self.discharge_fet = False
-            elif code == "0008":
-                warning_alarm += "Warning: "+code+" - Cell Under Voltage"
-                self.voltage_cell_low = 1
-                self.discharge_fet = False
-            elif code == "0010":
-                warning_alarm += "Warning: "+code+" - Charge Over Current"
-                self.current_over = 1
-            elif code == "0020":
-                warning_alarm += "Warning: "+code+" - Discharge Over Current"
-                self.current_over = 1
-            elif code == "0040":
-                warning_alarm += "Warning: "+code+" - Ambient High Temp"
-                self.temp_high_internal = 1
-            elif code == "0080":
-                warning_alarm += "Warning: "+code+" - Mosfets High Temp"
-                self.temp_high_internal = 1
-            elif code == "0100":
-                warning_alarm += "Warning: "+code+" - Charge Over Temp"
-                self.temp_high_charge = 1
-            elif code == "0200":
-                warning_alarm += "Warning: "+code+" - Discharge Over Temp"
-                self.temp_high_discharge = 1
-            elif code == "0400":
-                warning_alarm += "Warning: "+code+" - Charge Under Temp"
-                self.temp_low_charge = 1
-            elif code == "1000":
-                warning_alarm += "Warning: "+code+" - Low Capacity"
-                self.soc_low = 1
-                self.discharge_fet = False
-            elif code == "2000":
-                warning_alarm += "Warning: "+code+" - Float Stoped"
-            elif code == "4000":
-                warning_alarm += "Warning: "+code+" - UNKNOWN"
-                self.internal_failure = 1
-            else:
-                warning_alarm += "Warning: "+code+" - UNKNOWN"
+        if code == "0000":
+            warning_alarm += "No Warnings - "+code
+        elif code == "0001":
+            warning_alarm += "Warning: "+code+" - Pack Over Voltage"
+            self.voltage_high = 1
+            self.charge_fet = False
+        elif code == "0002":
+            warning_alarm += "Warning: "+code+" - Cell Over Voltage"
+            self.voltage_cell_high = 1
+            self.charge_fet = False
+        elif code == "0004":
+            warning_alarm += "Warning: "+code+" - Pack Under Voltage"
+            self.voltage_low = 1
+            self.discharge_fet = False
+        elif code == "0008":
+            warning_alarm += "Warning: "+code+" - Cell Under Voltage"
+            self.voltage_cell_low = 1
+            self.discharge_fet = False
+        elif code == "0010":
+            warning_alarm += "Warning: "+code+" - Charge Over Current"
+            self.current_over = 1
+        elif code == "0020":
+            warning_alarm += "Warning: "+code+" - Discharge Over Current"
+            self.current_over = 1
+        elif code == "0040":
+            warning_alarm += "Warning: "+code+" - Ambient High Temp"
+            self.temp_high_internal = 1
+        elif code == "0080":
+            warning_alarm += "Warning: "+code+" - Mosfets High Temp"
+            self.temp_high_internal = 1
+        elif code == "0100":
+            warning_alarm += "Warning: "+code+" - Charge Under Temp" # Testing: 0100=Charge Under Temp
+            self.temp_high_charge = 1
+        elif code == "0200":
+            warning_alarm += "Warning: "+code+" - Discharge Over Temp"
+            self.temp_high_discharge = 1
+        elif code == "0400":
+            warning_alarm += "Warning: "+code+" - Charge Under Temp"
+            self.temp_low_charge = 1
+        elif code == "1000":
+            warning_alarm += "Warning: "+code+" - Low Capacity"
+            self.soc_low = 1
+            self.discharge_fet = False
+        elif code == "2000":
+            warning_alarm += "Warning: "+code+" - Float Stoped"
+        elif code == "4000":
+            warning_alarm += "Warning: "+code+" - UNKNOWN"
+            self.internal_failure = 1
+        else:
+            warning_alarm += "Warning: "+code+" - UNKNOWN"
+        if self.protectionLogger is True:
             if code != "0000":
                 logger.error(f"{warning_alarm}")
+                self.bms_stats()
         return warning_alarm
 
     def lookup_protection(self, batteryBankStats):
-        unique_codes = []
-        if batteryBankStats[self.Id]["protection_hex"] not in unique_codes:
-            unique_codes.append(batteryBankStats[self.Id]["protection_hex"])
+        code = batteryBankStats[self.Id]["protection_hex"]
         protection_alarm = ""
-        for code in unique_codes:
-            if code == "0000":
-                protection_alarm += "No Protection Events - "+code
-                self.charge_fet = True
-                self.discharge_fet = True
-            elif code == "0001":
-                protection_alarm += "Protection: "+code+" - Pack Over Voltage"
-                self.voltage_high = 2
-                self.charge_fet = False
-            elif code == "0002":
-                protection_alarm += "Protection: "+code+" - Cell Over Voltage"
-                self.voltage_cell_high = 2
-                self.charge_fet = False
-            elif code == "0004":
-                protection_alarm += "Protection: "+code+" - Pack Under Voltage"
-                self.voltage_low = 2
-                self.discharge_fet = False
-            elif code == "0008":
-                protection_alarm += "Protection: "+code+" - Cell Under Voltage"
-                self.voltage_cell_low = 2
-                self.discharge_fet = False
-            elif code == "0010":
-                protection_alarm += "Protection: "+code+" - Charge Over Current"
-                self.current_over = 2
-            elif code == "0020":
-                protection_alarm += "Protection: "+code+" - Discharge Over Current"
-                self.current_over = 2
-            elif code == "0040":
-                protection_alarm += "Protection: "+code+" - High Ambient Temp"
-                self.temp_high_internal = 2
-                self.charge_fet = False
-            elif code == "0080":
-                protection_alarm += "Protection: "+code+" - Mosfets High Temp"
-                self.temp_high_internal = 2
-                self.charge_fet = False
-            elif code == "0100":
-                protection_alarm += "Protection: "+code+" - Charge Over Temp"
-                self.temp_high_charge = 2
-                self.charge_fet = False
-                self.discharge_fet = False
-            elif code == "0200":
-                protection_alarm += "Protection: "+code+" - Discharge Over Temp"
-                self.temp_high_discharge = 2
-                self.charge_fet = False
-                self.discharge_fet = False
-            elif code == "0400":
-                protection_alarm += "Protection: "+code+" - Charge Under Temp"
-                self.temp_low_charge = 2
-                self.charge_fet = False
-            elif code == "0800":
-                protection_alarm += "Protection: "+code+" - Discharge Under Temp"
-                self.temp_low_charge = 2
-                self.discharge_fet = False
-            elif code == "1000":
-                protection_alarm += "Protection: "+code+" - Low Capacity"
-                self.soc_low = 2
-                self.discharge_fet = False
-            elif code == "2000":
-                protection_alarm += "Protection: "+code+" - Discharge SC"
-                self.discharge_fet = False
-            else:
-                protection_alarm += "UNKNOWN: "+code
+        if code == "0000":
+            protection_alarm += "No Protection Events - "+code
+            self.charge_fet = True
+            self.discharge_fet = True
+        elif code == "0001":
+            protection_alarm += "Protection: "+code+" - Pack Over Voltage"
+            self.voltage_high = 2
+            self.charge_fet = False
+        elif code == "0002":
+            protection_alarm += "Protection: "+code+" - Cell Over Voltage"
+            self.voltage_cell_high = 2
+            self.charge_fet = False
+        elif code == "0004":
+            protection_alarm += "Protection: "+code+" - Pack Under Voltage"
+            self.voltage_low = 2
+            self.discharge_fet = False
+        elif code == "0008":
+            protection_alarm += "Protection: "+code+" - Cell Under Voltage"
+            self.voltage_cell_low = 2
+            self.discharge_fet = False
+        elif code == "0010":
+            protection_alarm += "Protection: "+code+" - Charge Over Current"
+            self.current_over = 2
+        elif code == "0020":
+            protection_alarm += "Protection: "+code+" - Discharge Over Current"
+            self.current_over = 2
+        elif code == "0040":
+            protection_alarm += "Protection: "+code+" - High Ambient Temp"
+            self.temp_high_internal = 2
+            self.charge_fet = False
+        elif code == "0080":
+            protection_alarm += "Protection: "+code+" - Mosfets High Temp"
+            self.temp_high_internal = 2
+            self.charge_fet = False
+        elif code == "0100":
+            protection_alarm += "Protection: "+code+" - Charge Over Temp"
+            self.temp_high_charge = 2
+            self.charge_fet = False
+            self.discharge_fet = False
+        elif code == "0200":
+            protection_alarm += "Protection: "+code+" - Discharge Over Temp"
+            self.temp_high_discharge = 2
+            self.charge_fet = False
+            self.discharge_fet = False
+        elif code == "0400":
+            protection_alarm += "Protection: "+code+" - Charge Under Temp"
+            self.temp_low_charge = 2
+            self.charge_fet = False
+        elif code == "0800":
+            protection_alarm += "Protection: "+code+" - Discharge Under Temp"
+            self.temp_low_charge = 2
+            self.discharge_fet = False
+        elif code == "1000":
+            protection_alarm += "Protection: "+code+" - Low Capacity"
+            self.soc_low = 2
+            self.discharge_fet = False
+        elif code == "2000":
+            protection_alarm += "Protection: "+code+" - Discharge SC"
+            self.discharge_fet = False
+        else:
+            protection_alarm += "Protection UNKNOWN: "+code
+        if self.protectionLogger is True:
             if code != "0000":
                 logger.error(f"{protection_alarm}")
+                self.bms_stats()
         return protection_alarm
 
     def lookup_error(self, batteryBankStats):
-        unique_codes = []
-        if batteryBankStats[self.Id]["error_hex"] not in unique_codes:
-            unique_codes.append(batteryBankStats[self.Id]["error_hex"])
+        code = batteryBankStats[self.Id]["error_hex"]
         error_alarm = ""
-        for code in unique_codes:
-            if code == "0000":
-                error_alarm = f"No Errors - "+code
-            elif code == "0001":
-                error_alarm = f"Error: "+code+" - Voltage Error"
-            elif code == "0002":
-                error_alarm = f"Error: "+code+" - Temperature Error"
-            elif code == "0004":
-                error_alarm = f"Error: "+code+" - Current Flow Error"
-            elif code == "0010":
-                error_alarm = f"Error: "+code+" - Cell Unbalanced"
-            else:
-                error_alarm = "UNKNOWN: "+code
+        if code == "0000":
+            error_alarm = f"No Errors - "+code
+        elif code == "0001":
+            error_alarm = f"Error: "+code+" - Voltage Error"
+        elif code == "0002":
+            error_alarm = f"Error: "+code+" - Temperature Error"
+        elif code == "0004":
+            error_alarm = f"Error: "+code+" - Current Flow Error"
+        elif code == "0010":
+            error_alarm = f"Error: "+code+" - Cell Unbalanced"
+        else:
+            error_alarm = "UNKNOWN: "+code
+        if self.protectionLogger is True:
             if code != "0000":
                 logger.error(f"{error_alarm}")
+                self.bms_stats()
         return error_alarm
 
     def lookup_status(self, status_hex):
-        if status_hex == "00":
-            status_code = "Standby"
-        elif status_hex == "01":
-            status_code = "Charging"
-        elif status_hex == "02":
-            status_code = "Discharging"
-        elif status_hex == "04":
-            status_code = "Protect"
-        elif status_hex == "08":
-            status_code = "Charging Limit"
+        status_code = "UNKNOWN"
+        if status_hex == "0000":
+            status_code = "Inactive/Standby"
+        elif status_hex == "0001":
+            status_code = "Inactive/Charging"
+        elif status_hex == "0002":
+            status_code = "Inactive/Discharging"
+        elif status_hex == "0004":
+            status_code = "Inactive/Protect"
+        elif status_hex == "0008":
+            status_code = "Inactive/Charging Limit"
+        elif status_hex == "8000":
+            status_code = "Active/Standby"
+        elif status_hex == "8001":
+            status_code = "Active/Charging"
+        elif status_hex == "8002":
+            status_code = "Active/Discharging"
+        elif status_hex == "8004":
+            status_code = "Active/Protect"
+        elif status_hex == "8008":
+            status_code = "Active/Charging Limit"
         return status_code
 
     def lookup_heater(self, heater_status):
@@ -509,13 +539,13 @@ class EG4_LL(Battery):
             balacing_state = 0
         return balacing_state
 
-    def get_max_temp(self):
+    def get_max_temperature(self):
         self.temp1 = self.battery_stats[self.Id]["temp1"]
         self.temp2 = self.battery_stats[self.Id]["temp2"]
         temp_max = max(self.temp1, self.temp2)
         return temp_max
 
-    def get_min_temp(self):
+    def get_min_temperature(self):
         self.temp1 = self.battery_stats[self.Id]["temp1"]
         self.temp2 = self.battery_stats[self.Id]["temp2"]
         temp_min = min(self.temp1, self.temp2)
