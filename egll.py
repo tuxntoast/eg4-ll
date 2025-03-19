@@ -96,6 +96,7 @@ class EG4_LL(Battery):
                 self.poll_interval = (((self.serialTimeout)*1000)*3)
                 self.custom_field = self.BATTERYTYPE+":"+str(self.Id)
                 cell_poll = self.read_battery_bank()
+                self.cell_count = int(self.battery_stats[self.Id]["cell_count"])
                 if cell_poll is not False:
                     self.status_logger()
                     return True
@@ -121,6 +122,10 @@ class EG4_LL(Battery):
             else:
                 hw_reply = self.read_hw_details(self.Id)
                 if hw_reply is not False:
+                    self.cell_count = int(cell_reply["cell_count"])
+                    self.min_battery_voltage = float(utils.MIN_CELL_VOLTAGE * self.cell_count)
+                    self.max_battery_voltage = float(utils.MAX_CELL_VOLTAGE * self.cell_count)
+                    self.capacity = cell_reply["capacity"]
                     self.battery_stats[self.Id] = { **cell_reply, **hw_reply }
                 else:
                     return False
@@ -129,7 +134,9 @@ class EG4_LL(Battery):
         result = self.reportBatteryBank()
         if self.statuslogger is True:
             self.status_logger()
-        return True
+        if result is True:
+            return True
+        return False
 
     def get_settings(self):
         result = self.read_battery_bank()
@@ -213,6 +220,10 @@ class EG4_LL(Battery):
         cellId = 1
         cellVoltageList = []
         cellVoltageSum = 0
+        # Debug Cell Mis Reporting 
+        if battery["cell_count"] != self.cell_count:
+            logger.error(f"Battery: {id.to_bytes(1, 'big')} Cell Count: {battery['cell_count']}")
+            logger.error(f"BMS Reply: {packet.hex().upper()}")
         while cellId <= battery["cell_count"]:
             cellNum = "cell"+str(cellId)
             cellVolt = int.from_bytes(packet[startByte:endByte], "big")/1000
@@ -243,7 +254,6 @@ class EG4_LL(Battery):
         self.voltage = self.battery_stats[self.Id]["cell_voltage"]
         self.current = self.battery_stats[self.Id]["current"]
         self.capacity_remain = self.battery_stats[self.Id]["capacity_remain"]
-        self.capacity = self.battery_stats[self.Id]["capacity"]
         self.soc = self.battery_stats[self.Id]["soc"]
         self.soh = self.battery_stats[self.Id]["soh"]
         self.cycles = self.battery_stats[self.Id]["cycles"]
@@ -255,13 +265,8 @@ class EG4_LL(Battery):
         self.lookup_protection(self.battery_stats)
         self.lookup_warning(self.battery_stats)
         self.lookup_error(self.battery_stats)
-
         self.temp_max = max(self.temp1, self.temp2)
         self.temp_min = min(self.temp1, self.temp2)
-
-        self.cell_count = int(self.battery_stats[self.Id]["cell_count"])
-        self.min_battery_voltage = float(utils.MIN_CELL_VOLTAGE * self.cell_count)
-        self.max_battery_voltage = float(utils.MAX_CELL_VOLTAGE * self.cell_count)
         self.cells = [Cell(True) for _ in range(0, self.cell_count)]
         for i, cell in enumerate(self.cells):
             self.cells[int(i)].voltage = self.battery_stats[self.Id]['cell'+str(i+1)]
