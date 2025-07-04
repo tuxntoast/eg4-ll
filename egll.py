@@ -20,8 +20,6 @@ import utils, datetime
 #     Cell Voltage Implemented
 #     Hardware Name / Version / Serial Implemented
 #     Error / Warn / Protection Implemented
-#        - Looks like the Code might not be totally correct OR the BMS has
-#          moments where a random is returned but only during one BMS poll
 #     SoH / SoC State Implemented
 #     Temp Implemented
 #     Balancing Support
@@ -30,10 +28,12 @@ import utils, datetime
 
 # Battery Tested on:
 # 2x Eg4 LL 12v 400 AH
-# Venus OS v3.52 running on Cerbo GX - dbus-serialbattery v2.0.20250228dev
+# Venus OS v3.55 running on Cerbo GX - dbus-serialbattery v2.0.20250228dev
 # One RS232 Cable to USB is needed to connect Cerbo GX to the master BMS
 # A Cat5/Cat6 cable can be used to connected the Master BMS RS485 secondary port to the
 # first port of the BMS below it. BMS units can be "Daisy Chained" until your full bank is connected
+# Update BATTERY_ADDRESSES in config.ini to define the BMS ID in your communication chain 
+# Example: BATTERY_ADDRESSES = 0x10, 0x01 would be to conect and report on BMS ID 16 and 1
 #
 # The master unit or first unit should have a Dip Switch ID set to 16 or 64 depending on your unit and version
 # All other BMS in the communication chain should have a Dip switch setting of 1 - 15 or 1 - 63 depending on your units
@@ -54,6 +54,8 @@ class EG4_LL(Battery):
     # When BMS returns a Warning/Error/Protection Alarm, Print that Error code
     # and BMS Stats to Driver Log file. This would help a user figure out what might be happening
     protectionLogger = False
+    debug = False
+    
 
     battery_stats = {}
     serialTimeout = 2
@@ -205,7 +207,9 @@ class EG4_LL(Battery):
         battery.update({"cycles" : int.from_bytes(packet[61:65], "big")})
         battery.update({"temp1" : int.from_bytes(packet[69:70], "big", signed=True)})
         battery.update({"temp2" : int.from_bytes(packet[70:71], "big", signed=True)})
-        battery.update({"temp_mos" : int.from_bytes(packet[39:41], "big", signed=True)})
+        battery.update({"temp3" : int.from_bytes(packet[71:72], "big", signed=True)})
+        battery.update({"temp4" : int.from_bytes(packet[72:73], "big", signed=True)})
+        battery.update({"temperature_mos" : int.from_bytes(packet[39:41], "big", signed=True)})
         battery.update({"temp_max" : max(battery["temp1"], battery["temp2"])})
         battery.update({"temp_min" : min(battery["temp1"], battery["temp2"])})
         battery.update({"cell_count" : int.from_bytes(packet[75:77], "big")})
@@ -220,8 +224,8 @@ class EG4_LL(Battery):
         cellId = 1
         cellVoltageList = []
         cellVoltageSum = 0
-        # Debug Cell Mis Reporting 
-        if battery["cell_count"] != self.cell_count:
+        # Debug Cell Mis Reporting
+        if battery["cell_count"] != self.cell_count and self.debug is True:
             logger.error(f"Battery: {id.to_bytes(1, 'big')} Cell Count: {battery['cell_count']}")
             logger.error(f"BMS Reply: {packet.hex().upper()}")
         while cellId <= battery["cell_count"]:
@@ -257,16 +261,19 @@ class EG4_LL(Battery):
         self.soc = self.battery_stats[self.Id]["soc"]
         self.soh = self.battery_stats[self.Id]["soh"]
         self.cycles = self.battery_stats[self.Id]["cycles"]
-        self.temp1 = self.battery_stats[self.Id]["temp1"]
-        self.temp2 = self.battery_stats[self.Id]["temp2"]
-        self.temp_mos = self.battery_stats[self.Id]["temp_mos"]
+        self.temperature_1 = self.battery_stats[self.Id]["temp1"]
+        self.temperature_2 = self.battery_stats[self.Id]["temp2"]
+        if not (self.temperature_3 == 0) and (self.temperature_4 == 0):
+            self.temperature_3 = self.battery_stats[self.Id]["temp3"]
+            self.temperature_4 = self.battery_stats[self.Id]["temp4"]
+        self.temperature_mos = self.battery_stats[self.Id]["temperature_mos"]
         self.cell_min_voltage = self.battery_stats[self.Id]["cell_min"]
         self.cell_max_voltage = self.battery_stats[self.Id]["cell_max"]
         self.lookup_protection(self.battery_stats)
         self.lookup_warning(self.battery_stats)
         self.lookup_error(self.battery_stats)
-        self.temp_max = max(self.temp1, self.temp2)
-        self.temp_min = min(self.temp1, self.temp2)
+        self.temp_max = max(self.temperature_1, self.temperature_2)
+        self.temp_min = min(self.temperature_1, self.temperature_2)
         self.cells = [Cell(True) for _ in range(0, self.cell_count)]
         for i, cell in enumerate(self.cells):
             self.cells[int(i)].voltage = self.battery_stats[self.Id]['cell'+str(i+1)]
@@ -277,7 +284,7 @@ class EG4_LL(Battery):
         logger.info("== Pack Details =====")
         logger.info(f"  == BMS ID-{self.Id} ===")
         logger.info(f"    == Temp ==")
-        logger.info(f"      Temp 1: {self.temp1}c | Temp 2: {self.temp2}c | Temp Mos: {self.temp_mos}c")
+        logger.info(f"      Temp 1: {self.temperature_1}c | Temp 2: {self.temperature_2}c | Temp Mos: {self.temperature_mos}c")
         logger.info("     == BMS Data ==")
         logger.info("       Voltage: "
             + "%.3fv" % self.voltage
@@ -303,7 +310,7 @@ class EG4_LL(Battery):
         logger.info(f'Hardware Version: {self.battery_stats[self.Id]["hw_version"]}')
         logger.info(f'Serial Number: {self.battery_stats[self.Id]["hw_serial"]}')
         logger.info("===== Temp =====")
-        logger.info(f"Temp 1: {self.temp1}c | Temp 2: {self.temp2}c | Temp Mos: {self.temp_mos}c")
+        logger.info(f"Temp 1: {self.temperature_1}c | Temp 2: {self.temperature_2}c | Temp Mos: {self.temperature_mos}c")
         logger.info(f"Temp Max: {self.temp_max} | Temp Min: {self.temp_min}")
         logger.info(f"Heater {self.Id} Status: {self.lookup_heater(self.battery_stats[self.Id]['heater_status'])}")
         logger.info("===== BMS Data =====")
@@ -390,7 +397,7 @@ class EG4_LL(Battery):
             warning_alarm += "Warning: "+code+" - UNKNOWN"
         if self.protectionLogger is True:
             if code != "0000":
-                logger.error(f"{warning_alarm}")
+                logger.error(f"Warning Alarm:{warning_alarm}")
                 self.bms_stats()
         return warning_alarm
 
@@ -460,7 +467,7 @@ class EG4_LL(Battery):
             protection_alarm += "Protection UNKNOWN: "+code
         if self.protectionLogger is True:
             if code != "0000":
-                logger.error(f"{protection_alarm}")
+                logger.error(f"Protection Alarm: {protection_alarm}")
                 self.bms_stats()
         return protection_alarm
 
@@ -481,7 +488,7 @@ class EG4_LL(Battery):
             error_alarm = "UNKNOWN: "+code
         if self.protectionLogger is True:
             if code != "0000":
-                logger.error(f"{error_alarm}")
+                logger.error(f"BMS Error: {error_alarm}")
                 self.bms_stats()
         return error_alarm
 
@@ -495,8 +502,10 @@ class EG4_LL(Battery):
             status_code = "Inactive/Discharging"
         elif status_hex == "0004":
             status_code = "Inactive/Protect"
+            logger.error(f"BMS Status: {status_code}")
         elif status_hex == "0008":
             status_code = "Inactive/Charging Limit"
+            logger.error(f"BMS Status: {status_code}")
         elif status_hex == "8000":
             status_code = "Active/Standby"
         elif status_hex == "8001":
@@ -505,8 +514,10 @@ class EG4_LL(Battery):
             status_code = "Active/Discharging"
         elif status_hex == "8004":
             status_code = "Active/Protect"
+            logger.error(f"BMS Status: {status_code}")
         elif status_hex == "8008":
             status_code = "Active/Charging Limit"
+            logger.error(f"BMS Status: {status_code}")
         return status_code
 
     def lookup_heater(self, heater_status):
@@ -545,15 +556,15 @@ class EG4_LL(Battery):
         return balacing_state
 
     def get_max_temperature(self):
-        self.temp1 = self.battery_stats[self.Id]["temp1"]
-        self.temp2 = self.battery_stats[self.Id]["temp2"]
-        temp_max = max(self.temp1, self.temp2)
+        self.temperature_1 = self.battery_stats[self.Id]["temp1"]
+        self.temperature_2 = self.battery_stats[self.Id]["temp2"]
+        temp_max = max(self.temperature_1, self.temperature_2)
         return temp_max
 
     def get_min_temperature(self):
-        self.temp1 = self.battery_stats[self.Id]["temp1"]
-        self.temp2 = self.battery_stats[self.Id]["temp2"]
-        temp_min = min(self.temp1, self.temp2)
+        self.temperature_1 = self.battery_stats[self.Id]["temp1"]
+        self.temperature_2 = self.battery_stats[self.Id]["temp2"]
+        temp_min = min(self.temperature_1, self.temperature_2)
         return temp_min
 
     def read_bms_config(self):
