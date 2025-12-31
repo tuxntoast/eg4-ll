@@ -175,6 +175,7 @@ class EG4_LL(Battery):
             return True
         elif any(bank_stats.get(k, "0000") != "0000" for k in ["protection_hex", "warning_hex", "error_hex"]):
             if self.protectionLogger is True:
+                logger.error(f"**BMS Error, Protect or Warning Event Code Found In Polling Cycle**")
                 self.bms_stats(bank_stats)
                 return True
         elif self.statuslogger is True:
@@ -318,9 +319,9 @@ class EG4_LL(Battery):
         logger.info("== Pack Details =====")
         logger.info(f'Serial Number: {packet["hw_serial"]}')
         logger.info(f"  == BMS ID-{packet["BMS_Id"]} ===")
-        logger.info(f"    == Temp ==")
-        logger.info(f"      Temp 1: {packet["temp1"]}c | Temp 2: {packet["temp2"]}c | Temp Mos: {packet["temperature_mos"]}c")
-        logger.info(f"      Temp Max: {packet["temp_max"]} | Temp Min: {packet["temp_min"]}")
+        logger.info(f"     == Temp ==")
+        logger.info(f"       Temp 1: {packet["temp1"]}c | Temp 2: {packet["temp2"]}c | Temp Mos: {packet["temperature_mos"]}c")
+        logger.info(f"       Temp Max: {packet["temp_max"]} | Temp Min: {packet["temp_min"]}")
         logger.info("     == BMS Data ==")
         logger.info("       Voltage: "
             + "%.3fv" % packet["cell_voltage"]
@@ -332,10 +333,10 @@ class EG4_LL(Battery):
         logger.info(f"       Balancing State: {packet["balancing_text"]}")
         logger.info(f"       State: {packet["status"]}")
         logger.info(f"       Last Update: {packet["cellLastPoll"]}")
-        logger.info("        ===== Warning/Alarms =====")
-        logger.info(f"         {packet["warning"]}")
-        logger.info(f"         {packet["protection"]}")
-        logger.info(f"         {packet["error"]}")
+        logger.info("     ===== Warning/Alarms =====")
+        logger.info(f"      {packet["warning"]}")
+        logger.info(f"      {packet["protection"]}")
+        logger.info(f"      {packet["error"]}")
         logger.info("     == Cell Stats ==")
         cellId = 1
         while cellId <= packet['cell_count']:
