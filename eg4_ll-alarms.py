@@ -97,7 +97,7 @@ class EG4_LL(Battery):
                 logger.error(f"Connected to BMS ID: {pformat(serial)}")
                 self.serial_number = serial
                 self.poll_interval = (((self.serialTimeout)*1000)*3)
-                self.custom_field = self.BATTERYTYPE+"_ID:"+str(self.Id)
+                self.custom_field = self.BATTERYTYPE+":"+str(self.Id)
                 cell_poll = self.read_battery_bank()
                 if cell_poll is True:
                     return True
@@ -129,7 +129,7 @@ class EG4_LL(Battery):
         cell_reply["status"] = bms_status
         heater_status = self.lookup_heater(cell_reply)
         cell_reply["heater_state"] = heater_status
-        cell_reply["BMS_Id"] = self.Id
+
         # First-time initialization → fetch static HW/BMS data once
         if first_run:
             if self.LoadBMSSettings is True:
@@ -166,7 +166,7 @@ class EG4_LL(Battery):
         # Evaluate alarms
         alarm_status = self.alarm_mgr.evaluate(new_data=bank_stats)
         self.update_alarm_dbus(alarm_status)
-        self.battery_stats[self.Id] = bank_stats
+        self.battery_stats[self.Id] = bank_stats = {**bank_stats, **alarm_status}
         if first_run and not getattr(self, "_initial_status_logged", False): # Print Stats of Packs when first connected
             self.status_logger(bank_stats, alarm_status)
             self._initial_status_logged = True
@@ -244,6 +244,7 @@ class EG4_LL(Battery):
             "error_hex": packet[59:61].hex().upper(),
             "heater_hex": packet[53:54].hex().upper(),
             "cellLastPoll": datetime.datetime.now(),
+            "BMS_Id": id,
         }
         # ---- Cell voltages using BMS-provided cell_count ----
         cells = []
@@ -358,11 +359,11 @@ class EG4_LL(Battery):
                 level = "WARNING" if state == 1 else "PROTECTION"
                 logger.info(f"       {alarm_name}: {level}")
         logger.info("     == Active Controls ==")
-        logger.info(f"      Pack High Voltage // Cell High Voltage: {self._state_str(self.voltage_high)}-{self._state_str(self.voltage_cell_high)}")
-        logger.info(f"      Pack Low Voltage // Cell Low Voltage: {self._state_str(self.voltage_low)}-{self._state_str(self.voltage_cell_low)}")
-        logger.info(f"      High Temp Internal // High Temp Discharge: {self._state_str(self.temp_high_internal)}-{self._state_str(self.temp_high_discharge)}")
-        logger.info(f"      Low Temp Charge // Over Current: {self._state_str(self.temp_low_charge)}-{self._state_str(self.current_over)}")
-        logger.info(f"      Charging // Discharging // Balancer: {self._fet_str(self.charge_fet)}-{self._fet_str(self.discharge_fet)}-{self._fet_str(self.balance_fet)}")
+        logger.info(f"      Pack High Voltage // Cell High Voltage:  {self._state_str(self.voltage_high)}||{self._state_str(self.voltage_cell_high)}")
+        logger.info(f"      Pack Low Voltage // Cell Low Voltage:  {self._state_str(self.voltage_low)}||{self._state_str(self.voltage_cell_low)}")
+        logger.info(f"      High Temp Internal // High Temp Discharge:  {self._state_str(self.temp_high_internal)}||{self._state_str(self.temp_high_discharge)}")
+        logger.info(f"      Low Temp Charge // Over Current:  {self._state_str(self.temp_low_charge)}||{self._state_str(self.current_over)}")
+        logger.info(f"      Charging // Discharging // Balancer:  {self._fet_str(self.charge_fet)}||{self._fet_str(self.discharge_fet)}||{self._fet_str(self.balance_fet)}")
         logger.info("     == Cell Stats ==")
         for cellId in range(1, packet["cell_count"] + 1):
             cell_key = f"cell{cellId}"
@@ -429,8 +430,8 @@ class EG4_LL(Battery):
         self.voltage_cell_high = alarm_status.get("Cell_OV", 0)
         self.voltage_low = alarm_status.get("Pack_UV", 0)
         self.voltage_cell_low = alarm_status.get("Cell_UV", 0)
-        self.charge_fet = alarm_status.get("charge_fet", True)
-        self.discharge_fet = alarm_status.get("discharge_fet", True)
+        self.charge_fet = self.alarm_mgr.charge_fet
+        self.discharge_fet = self.alarm_mgr.discharge_fet
         self.current_over = max(
             alarm_status.get("Charge_OC1",0),
             alarm_status.get("Charge_OC2",0),
@@ -447,8 +448,6 @@ class EG4_LL(Battery):
         code = packet["warning_hex"]
         if code == "0000":
             warning_alarm += "No Warnings - "+code
-        elif code == "0800":
-            warning_alarm += "Warning: "+code+" - Charge Under Temp"
         else:
             warning_alarm += "Warning: "+code+" - UNKNOWN"
         return warning_alarm
@@ -469,6 +468,8 @@ class EG4_LL(Battery):
             error_alarm = f"No Errors - "+code
         else:
             error_alarm = "UNKNOWN: "+code
+            #logger.error(f"BMS Error: {code}")
+            #self.balance_status(packet)
         return error_alarm
 
     def lookup_status(self, packet):
@@ -678,7 +679,7 @@ class EG4_LL(Battery):
                 if not self.ser:
                     return False
             # ---- Retry loop ----
-            first_attempt = True
+        #    first_attempt = True
             for attempt in range(1, 4):
                 self.ser.reset_input_buffer()
                 self.ser.reset_output_buffer()
@@ -701,13 +702,13 @@ class EG4_LL(Battery):
                     self._eg4_ll_initialized = True
                     return bytes(buffer[:reply_length])
                 # ---- Treat "Received: 0" on first attempt as soft failure ----
-                if first_attempt and received_len == 0:
-                    first_attempt = False
-                    continue  # Retry without logging as hard failure
-                first_attempt = False  # after first attempt
-                # Ignore early failures for HW + CONFIG if not yet initialized
-                if not getattr(self, "_eg4_ll_initialized", False) and cmd_id in (0x69, 0x2D):
-                    continue
+            #    if first_attempt and received_len == 0:
+            #        first_attempt = False
+            #        continue  # Retry without logging as hard failure
+            #    first_attempt = False  # after first attempt
+            #    # Ignore early failures for HW + CONFIG if not yet initialized
+            #    if not getattr(self, "_eg4_ll_initialized", False) and cmd_id in (0x69, 0x2D):
+            #        continue
             # All attempts exhausted
             logger.error(
                 f'ERROR - Reply did not meet expected length! '
