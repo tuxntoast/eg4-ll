@@ -3,7 +3,6 @@
 # Notes
 # Added by https://github.com/tuxntoast
 
-# from batters import Protection
 from battery import Battery, Cell
 from utils import logger
 from struct import unpack_from
@@ -14,30 +13,20 @@ import utils, datetime, time
 from bms.EG4_ll_alarm_manager import EG4AlarmManager
 
 #    Author: Pfitz
-#    Date: 04 Jul 2025
+#    Date: 02 Jan 2026
 #    Features:
-#     UI reporting for all BMS in Communication chain
-#     Multi BMS communication Chain Support
-#     Cell Voltage Implemented
-#     Hardware Name / Version / Serial Implemented
-#     Error / Warn / Protection Implemented
-#     SoH / SoC State Implemented
-#     Temp Implemented
-#     Balancing Support
-#     Battery Voltage / Current
+#     DBus-Serial Multi Battery Monitoring Support
+#     Driver Error, Protect and Warning Alerting
+#     Driver Balancing Monitoring
+#     BMS Config Polling on Startup for Alert Values
 #     Support for 12v/24v/48v BMS
 
 # Battery Tested on:
 # 2x Eg4 LL 12v 400 AH
 # Venus OS v3.67 running on Cerbo GX - dbus-serialbattery v2.0.20250729
-# One RS232 Cable to USB is needed to connect Cerbo GX to the master BMS
-# A Cat5/Cat6 cable can be used to connected the Master BMS RS485 secondary port to the
 # first port of the BMS below it. BMS units can be "Daisy Chained" until your full bank is connected
 # Update BATTERY_ADDRESSES in config.ini to define the BMS ID in your communication chain
 # Example: BATTERY_ADDRESSES = 0x10, 0x01 would be to conect and report on BMS ID 16 and 1
-#
-# The master unit or first unit should have a Dip Switch ID set to 16 or 64 depending on your unit and version
-# All other BMS in the communication chain should have a Dip switch setting of 1 - 15 or 1 - 63 depending on your units
 
 class EG4_LL(Battery):
     def __init__(self, port, baud, address):
@@ -51,12 +40,12 @@ class EG4_LL(Battery):
         self.runtime = 0  # TROUBLESHOOTING for no reply errors
         self.data = {}
 
-    statuslogger = False
-    LoadBMSSettings = True
-    protectionLogger = True
+    statuslogger = False # Prints to STDOut After Each BMS Poll
+    LoadBMSSettings = True # Load BMS Config on Startup && Use Driver Based Alarms
+    protectionLogger = False # Print to STDOut when BMS raises an error (LOTS of false alerts)
 
     battery_stats = {}
-    serialTimeout = 2
+    serialTimeout = 2 # Serial Connection timeout
 
     BATTERYTYPE = "EG4-LL"
 
@@ -142,7 +131,8 @@ class EG4_LL(Battery):
                 return False
             else:
                 bank_stats = {**extra_reply, **cell_reply}
-                self.alarm_mgr = EG4AlarmManager(self.data, bms_stats_cb=self.bms_stats)
+                if self.LoadBMSSettings is True:
+                    self.alarm_mgr = EG4AlarmManager(self.data, bms_stats_cb=self.bms_stats)
 
             self.cell_count = int(cell_reply["cell_count"])
             self.min_battery_voltage = utils.MIN_CELL_VOLTAGE * cell_reply["cell_count"]
@@ -164,9 +154,12 @@ class EG4_LL(Battery):
         bank_stats["balancing_text"] = balancing_map.get(code, "UNKNOWN")
         self.reportBatteryBank(bank_stats)
         # Evaluate alarms
-        alarm_status = self.alarm_mgr.evaluate(new_data=bank_stats)
-        self.update_alarm_dbus(alarm_status)
-        self.battery_stats[self.Id] = bank_stats = {**bank_stats, **alarm_status}
+        if self.LoadBMSSettings is True:
+            alarm_status = self.alarm_mgr.evaluate(new_data=bank_stats)
+            self.update_alarm_dbus(alarm_status)
+            self.battery_stats[self.Id] = bank_stats = {**bank_stats, **alarm_status}
+        else:
+            self.battery_stats[self.Id] = bank_stats
         if first_run and not getattr(self, "_initial_status_logged", False): # Print Stats of Packs when first connected
             self.status_logger(bank_stats, alarm_status)
             self._initial_status_logged = True
@@ -253,10 +246,18 @@ class EG4_LL(Battery):
             voltage = raw / 1000
             battery[f"cell{i+1}"] = voltage
             cells.append(voltage)
-        if cells:
-            battery["cell_voltage"] = round(sum(cells), 3)
-            battery["cell_max"] = max(cells)
-            battery["cell_min"] = min(cells)
+
+        valid_cells = [v for v in cells if v > 0.0]
+
+        if valid_cells:
+            battery["cell_voltage"] = round(sum(valid_cells), 3)
+            battery["cell_max"] = max(valid_cells)
+            battery["cell_min"] = min(valid_cells)
+        else:
+            battery["cell_voltage"] = 0.0
+            battery["cell_max"] = 0.0
+            battery["cell_min"] = 0.0
+
         # ---- Temperature handling (special rules) ----
         temp1 = s8(69)  # always valid
         temp2 = s8(70)  # always valid
@@ -326,7 +327,7 @@ class EG4_LL(Battery):
         for cellId in range(1, packet["cell_count"] + 1):
             cell_key = f"cell{cellId}"
             if cell_key in packet:  # safety check
-                logger.info(f"    Cell {cellId}: {packet[cell_key]}v")
+                logger.info(f"      Cell {cellId}: {packet[cell_key]}v")
         logger.info(f"       Cell Max/Min/Diff: ({packet["cell_max"]}/{packet["cell_min"]}/{round((packet["cell_max"] - packet["cell_min"]), 3)})v")
         return True
 
@@ -352,12 +353,13 @@ class EG4_LL(Battery):
         logger.info(f"      {packet["warning"]}")
         logger.info(f"      {packet["protection"]}")
         logger.info(f"      {packet["error"]}")
-        active_alarms = {name: state for name, state in alarm_msg.items() if state != 0}
-        if active_alarms:
-            logger.info("     ===== Active Alarms =====")
-            for alarm_name, state in active_alarms.items():
-                level = "WARNING" if state == 1 else "PROTECTION"
-                logger.info(f"       {alarm_name}: {level}")
+        if self.LoadBMSSettings is True:
+            active_alarms = {name: state for name, state in alarm_msg.items() if state != 0}
+            if active_alarms:
+                logger.info("     ===== Active Alarms =====")
+                for alarm_name, state in active_alarms.items():
+                    level = "WARNING" if state == 1 else "PROTECTION"
+                    logger.info(f"       {alarm_name}: {level}")
         logger.info("     == Active Controls ==")
         logger.info(f"      Pack High Voltage // Cell High Voltage:  {self._state_str(self.voltage_high)}||{self._state_str(self.voltage_cell_high)}")
         logger.info(f"      Pack Low Voltage // Cell Low Voltage:  {self._state_str(self.voltage_low)}||{self._state_str(self.voltage_cell_low)}")
@@ -368,7 +370,7 @@ class EG4_LL(Battery):
         for cellId in range(1, packet["cell_count"] + 1):
             cell_key = f"cell{cellId}"
             if cell_key in packet:  # safety check
-                logger.info(f"    Cell {cellId}: {packet[cell_key]}v")
+                logger.info(f"         Cell {cellId}: {packet[cell_key]}v")
         logger.info(f"       Cell Max/Min/Diff: ({packet["cell_max"]}/{packet["cell_min"]}/{round((packet["cell_max"] - packet["cell_min"]), 3)})v")
         return True
 
@@ -395,16 +397,17 @@ class EG4_LL(Battery):
         logger.info(f"  {packet["warning"]}")
         logger.info(f"  {packet["protection"]}")
         logger.info(f"  {packet["error"]}")
-        if alarm_msg:
-            logger.info("===== Alarm States =====")
-            for alarm_name, state in alarm_msg.items():
-                if state == 0:
-                    level = "OK"
-                elif state == 1:
-                    level = "WARNING"
-                else:
-                    level = "PROTECTION"
-                logger.info(f"   {alarm_name}: {level}")
+        if self.LoadBMSSettings is True:
+            if alarm_msg:
+                logger.info("===== Alarm States =====")
+                for alarm_name, state in alarm_msg.items():
+                    if state == 0:
+                        level = "OK"
+                    elif state == 1:
+                        level = "WARNING"
+                    else:
+                        level = "PROTECTION"
+                    logger.info(f"   {alarm_name}: {level}")
         logger.info(" == Active Controls ==")
         logger.info(f"   Pack High Voltage // Cell High Voltage: {self._state_str(self.voltage_high)}-{self._state_str(self.voltage_cell_high)}")
         logger.info(f"   Pack Low Voltage // Cell Low Voltage: {self._state_str(self.voltage_low)}-{self._state_str(self.voltage_cell_low)}")
@@ -468,8 +471,6 @@ class EG4_LL(Battery):
             error_alarm = f"No Errors - "+code
         else:
             error_alarm = "UNKNOWN: "+code
-            #logger.error(f"BMS Error: {code}")
-            #self.balance_status(packet)
         return error_alarm
 
     def lookup_status(self, packet):
