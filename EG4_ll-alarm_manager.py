@@ -37,15 +37,15 @@ class EG4AlarmManager:
         "Low_Cap_Warn": 5
     }
 
-    def __init__(self, bms_data, bms_stats_cb=None):
+    def __init__(self, bms_data, eg4ll_logger_cb=None):
         """
         Initialize the alarm manager.
 
         :param bms_data: Dictionary containing BMS telemetry & limit values.
-        :param bms_stats_cb: Optional callback function for warnings/protections.
+        :param eg4ll_logger_cb: Optional callback function for warnings/protections.
         """
         self.data = bms_data
-        self.bms_stats_cb = bms_stats_cb
+        self.eg4ll_logger_cb = eg4ll_logger_cb # CallBack is no longer needed
         self.alarm_states = {}        # Tracks previous state for edge-triggered logging
         self.charge_fet = True
         self.discharge_fet = True
@@ -88,7 +88,7 @@ class EG4AlarmManager:
         required_keys = ("cell_max", "cell_min", "temp_max", "temp_min", "current", "cell_voltage", "soc")
         if not all(k in self.data for k in required_keys):
             if not hasattr(self, "_telemetry_warned"):
-                self.bms_stats_cb({
+                self.eg4ll_logger_cb({
                     "info": "Waiting for live telemetry before evaluating alarms"
                 })
                 self._telemetry_warned = True
@@ -187,10 +187,10 @@ class EG4AlarmManager:
             self._initialized = True
             return alarms
 
-        if changed and self.bms_stats_cb:
+        if changed and self.eg4ll_logger_cb:
             active_alarms = {k: v for k, v in alarms.items() if v != 0}
             if active_alarms:
-                self.bms_stats_cb(self.data, active_alarms)
+                self.eg4ll_logger(self.data, 3, active_alarms)
 
         # --- FET control flags ---
         # Charge FET logic
