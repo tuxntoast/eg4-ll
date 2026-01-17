@@ -45,7 +45,7 @@ class EG4AlarmManager:
         :param eg4ll_logger_cb: Optional callback function for warnings/protections.
         """
         self.data = bms_data
-        self.eg4ll_logger_cb = eg4ll_logger_cb # CallBack is no longer needed
+        self.eg4ll_logger_cb = eg4ll_logger_cb
         self.alarm_states = {}        # Tracks previous state for edge-triggered logging
         self.charge_fet = True
         self.discharge_fet = True
@@ -174,24 +174,6 @@ class EG4AlarmManager:
             self._discharge_oc_time
         )
 
-        # --- Edge-triggered logging ---
-        changed = False
-        for alarm, state in alarms.items():
-            prev = self.alarm_states.get(alarm, state)
-            if state != prev:
-                changed = True
-            self.alarm_states[alarm] = state
-
-        # Suppress logging on first valid evaluation
-        if not self._initialized:
-            self._initialized = True
-            return alarms
-
-        if changed and self.eg4ll_logger_cb:
-            active_alarms = {k: v for k, v in alarms.items() if v != 0}
-            if active_alarms:
-                self.eg4ll_logger(self.data, 3, active_alarms)
-
         # --- FET control flags ---
         # Charge FET logic
         self.charge_fet = all(
@@ -211,5 +193,23 @@ class EG4AlarmManager:
         self.temp_high_internal = alarms.get("PCB_OT", 0)
         self.temp_high_discharge = alarms.get("Discharge_OT", 0)
         self.temp_low_charge = alarms.get("Charge_UT", 0)
+
+        # --- Edge-triggered logging ---
+        changed = False
+        for alarm, state in alarms.items():
+            prev = self.alarm_states.get(alarm, state)
+            if state != prev:
+                changed = True
+            self.alarm_states[alarm] = state
+
+        # Suppress logging on first valid evaluation
+        if not self._initialized:
+            self._initialized = True
+            return alarms
+
+        if changed and self.eg4ll_logger_cb:
+            active_alarms = {k: v for k, v in alarms.items() if v != 0}
+            if active_alarms:
+                self.eg4ll_logger_cb(self.data, 2, active_alarms)
 
         return alarms
