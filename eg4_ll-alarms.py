@@ -208,18 +208,19 @@ class EG4_LL(Battery):
         return battery
 
     def read_cell_details(self, id):
+        """Modified version with cell voltage validation"""
         command = self.eg4CommandGen(id.to_bytes(1, "big") + self.cellCommandRoot)
         packet = self.read_eg4ll_command(command)
         if not packet:
             return False
-        # ---- Parsing helpers ----
+        # Parsing helpers
         u16 = lambda o: int.from_bytes(packet[o:o+2], "big")
         s16 = lambda o: int.from_bytes(packet[o:o+2], "big", signed=True)
         u32 = lambda o: int.from_bytes(packet[o:o+4], "big")
         s8  = lambda o: int.from_bytes(packet[o:o+1], "big", signed=True)
         CELL_START = 7
         MAX_CELLS = 16
-        # ---- Basic battery info ----
+        # Basic battery info
         battery = {
             "voltage": u16(3) / 100,
             "current": s16(5) / 100,
@@ -230,7 +231,7 @@ class EG4_LL(Battery):
             "soh": u16(49),
             "cycles": u32(61),
             "temperature_mos": s16(39),
-            "cell_count": min(u16(75), MAX_CELLS),  # Use BMS-provided count
+            "cell_count": min(u16(75), MAX_CELLS),
             "status_hex": packet[54:56].hex().upper(),
             "warning_hex": packet[55:57].hex().upper(),
             "protection_hex": packet[57:59].hex().upper(),
@@ -239,16 +240,15 @@ class EG4_LL(Battery):
             "cellLastPoll": datetime.datetime.now(),
             "BMS_Id": id,
         }
-        # ---- Cell voltages using BMS-provided cell_count ----
+        # Parse cell voltages
         cells = []
         for i in range(battery["cell_count"]):
             raw = u16(CELL_START + i * 2)
             voltage = raw / 1000
             battery[f"cell{i+1}"] = voltage
             cells.append(voltage)
-
+        # Calculate cell stats
         valid_cells = [v for v in cells if v > 0.0]
-
         if valid_cells:
             battery["cell_voltage"] = round(sum(valid_cells), 3)
             battery["cell_max"] = max(valid_cells)
@@ -257,12 +257,11 @@ class EG4_LL(Battery):
             battery["cell_voltage"] = 0.0
             battery["cell_max"] = 0.0
             battery["cell_min"] = 0.0
-
-        # ---- Temperature handling (special rules) ----
-        temp1 = s8(69)  # always valid
-        temp2 = s8(70)  # always valid
-        temp3 = s8(71)  # 0 = not present
-        temp4 = s8(72)  # 0 = not present
+        # Temperature handling
+        temp1 = s8(69)
+        temp2 = s8(70)
+        temp3 = s8(71)
+        temp4 = s8(72)
         battery["temp1"] = temp1
         battery["temp2"] = temp2
         temps = [temp1, temp2]
@@ -601,19 +600,43 @@ class EG4_LL(Battery):
                 crc &= 0xFFFF  # keep 16-bit
         return data + struct.pack("<H", crc)
 
+    def validate_crc(self, data: bytes) -> bool:
+        """
+        Validate Modbus CRC-16 on received data.
+        Returns True if CRC is valid, False otherwise.
+        """
+        if len(data) < 3:
+            return False
+        # Split payload and received CRC
+        payload = data[:-2]
+        received_crc = struct.unpack("<H", data[-2:])[0]
+        # Calculate expected CRC (Modbus CRC-16)
+        crc = 0xFFFF
+        poly = 0xA001
+        for byte in payload:
+            crc ^= byte
+            for _ in range(8):
+                if crc & 1:
+                    crc = (crc >> 1) ^ poly
+                else:
+                    crc >>= 1
+                crc &= 0xFFFF
+        return crc == received_crc
+
     def read_eg4ll_command(self, command):
+        """Modified version with CRC validation"""
         try:
-            bms_id = command[0]      # first byte
-            cmd_id = command[3]      # command ID byte
-            if cmd_id == 0x69:        # Hardware
+            bms_id = command[0]
+            cmd_id = command[3]
+            if cmd_id == 0x69:
                 command_string = "Hardware"
                 reply_length = 51
                 poll_timeout = 2.5
-            elif cmd_id == 0x00:      # Cell
+            elif cmd_id == 0x00:
                 command_string = "Cell"
                 reply_length = 83
                 poll_timeout = 4.0
-            elif cmd_id == 0x2D:      # Config
+            elif cmd_id == 0x2D:
                 command_string = "Config"
                 reply_length = 187
                 poll_timeout = 4.0
@@ -626,15 +649,15 @@ class EG4_LL(Battery):
                 self.ser = self.open_serial()
                 if not self.ser:
                     return False
-            # ---- Retry loop ----
+            # Retry loop with CRC validation
             for attempt in range(1, 4):
                 self.ser.reset_input_buffer()
                 self.ser.reset_output_buffer()
                 self.ser.write(command)
-                sleep(0.15)  # Required delay so the BMS is not overwhelmed
+                sleep(0.035)
                 buffer = bytearray()
                 start_time = time.time()
-                # ---- Partial-frame safe read loop ----
+                # Read with timeout
                 while len(buffer) < reply_length:
                     if (time.time() - start_time) > poll_timeout:
                         break
@@ -644,16 +667,21 @@ class EG4_LL(Battery):
                     else:
                         sleep(0.03)
                 received_len = len(buffer)
-                # ---- Check for successful reply ----
+                # Check length
                 if received_len >= reply_length:
+                    reply_data = bytes(buffer[:reply_length])
+                    # VALIDATE CRC
+                    if not self.validate_crc(reply_data):
+                        logger.error(
+                            f'ERROR - CRC validation FAILED! BMS ID: {bms_id} Command: {command_string} '
+                            f'Attempt: {attempt}/3 - Data corrupted, retrying...')
+                        continue  # Retry on CRC failure
+                    # CRC valid
                     self._eg4_ll_initialized = True
-                    return bytes(buffer[:reply_length])
-            # All attempts exhausted
-            logger.error(
-                f'ERROR - Reply did not meet expected length! '
-                f'BMS ID: {bms_id} Command: {command_string} '
-                f'Received: {received_len} Expected: {reply_length}'
-            )
+                    return reply_data
+            # All attempts failed
+            logger.error(f'ERROR - All retry attempts failed! 'f'BMS ID: {bms_id} Command: {command_string} '
+                    f'Received: {received_len} Expected: {reply_length}')
             return False
         except serial.SerialException as e:
             logger.error(e)
