@@ -42,7 +42,8 @@ class EG4_LL(Battery):
 
     statuslogger = False # Prints to STDOut After Each BMS Poll
     LoadBMSSettings = True # Load BMS Config on Startup && Use Driver Based Alarms
-    protectionLogger = False # Print to STDOut when BMS raises an error (LOTS of false alerts)
+    protectionLogger = True # Print to STDOut when BMS raises an error 
+    crcchecksumlogger = False # Print to stdout when the BMS Reply fails the CRC checksum
 
     battery_stats = {}
     serialTimeout = 2 # Serial Connection timeout
@@ -672,9 +673,10 @@ class EG4_LL(Battery):
                     reply_data = bytes(buffer[:reply_length])
                     # VALIDATE CRC
                     if not self.validate_crc(reply_data):
-                        logger.error(
-                            f'ERROR - CRC validation FAILED! BMS ID: {bms_id} Command: {command_string} '
-                            f'Attempt: {attempt}/3 - Data corrupted, retrying...')
+                        if self.crcchecksumlogger is True:
+                            logger.error(
+                                f'ERROR - CRC validation FAILED! BMS ID: {bms_id} Command: {command_string} '
+                                f'Attempt: {attempt}/3 - Data corrupted, retrying...')
                         continue  # Retry on CRC failure
                     # CRC valid
                     self._eg4_ll_initialized = True
