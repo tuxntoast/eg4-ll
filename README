@@ -1,0 +1,243 @@
+2026-01-20 01:11:19.301745500 INFO:SerialBattery:Starting dbus-serialbattery
+2026-01-20 01:11:19.305025500 INFO:SerialBattery:Venus OS v3.67 (normal) running on Cerbo GX
+2026-01-20 01:11:19.305569500 INFO:SerialBattery:dbus-serialbattery v2.0.20250729
+2026-01-20 01:11:35.306573500 INFO:SerialBattery:-- Testing BMS: 1 of 3 rounds
+2026-01-20 01:11:35.307496500 INFO:SerialBattery:  Testing EG4_LL at address "\x10" with 9600 baud
+2026-01-20 01:11:35.328807500 INFO:SerialBattery:Waiting for BMS ID 16 to initialize...
+2026-01-20 01:11:35.904590500 ERROR:SerialBattery:Connected to BMS ID: '4S124001905000016'
+2026-01-20 01:11:36.011958500 INFO:SerialBattery:Polling BMS for config settings...
+2026-01-20 01:11:36.242939500 INFO:SerialBattery:BMS Config Pulled Settings:
+2026-01-20 01:11:36.242947500 {'Balance_Volt': 3.4,
+2026-01-20 01:11:36.242950500  'Balance_Volt_Diff': 0.04,
+2026-01-20 01:11:36.242951500  'Cell_OV_Protect': 3.9,
+2026-01-20 01:11:36.242953500  'Cell_OV_Release': 3.45,
+2026-01-20 01:11:36.242954500  'Cell_OV_Warn': 3.6,
+2026-01-20 01:11:36.242956500  'Cell_UV_Protect': 2.0,
+2026-01-20 01:11:36.242957500  'Cell_UV_Release': 3.1,
+2026-01-20 01:11:36.242959500  'Cell_UV_Warn': 2.5,
+2026-01-20 01:11:36.242960500  'Charge_OC1_Delay': 10,
+2026-01-20 01:11:36.243179500  'Charge_OC1_Protect': 220.0,
+2026-01-20 01:11:36.243183500  'Charge_OC2_Delay': 2,
+2026-01-20 01:11:36.243184500  'Charge_OC2_Protect': 250.0,
+2026-01-20 01:11:36.243186500  'Charge_OC_Times': 0,
+2026-01-20 01:11:36.243188500  'Charge_OT_Protect': 75,
+2026-01-20 01:11:36.243190500  'Charge_OT_Release': 65,
+2026-01-20 01:11:36.243191500  'Charge_OT_Warn': 70,
+2026-01-20 01:11:36.243193500  'Charge_Release': 60,
+2026-01-20 01:11:36.243194500  'Charge_UT_Protect': 0,
+2026-01-20 01:11:36.243211500  'Charge_UT_Release': 5,
+2026-01-20 01:11:36.243213500  'Charge_UT_Warn': 2,
+2026-01-20 01:11:36.243214500  'Discharge_OC1_Delay': 10,
+2026-01-20 01:11:36.243216500  'Discharge_OC1_Protect': 220.0,
+2026-01-20 01:11:36.243218500  'Discharge_OC2_Delay': 2,
+2026-01-20 01:11:36.243219500  'Discharge_OC2_Protect': 250.0,
+2026-01-20 01:11:36.243221500  'Discharge_OC_Times': 0,
+2026-01-20 01:11:36.243223500  'Discharge_OT_Protect': 75,
+2026-01-20 01:11:36.243224500  'Discharge_OT_Release': 65,
+2026-01-20 01:11:36.243235500  'Discharge_OT_Warn': 70,
+2026-01-20 01:11:36.243237500  'Discharge_Release': 60,
+2026-01-20 01:11:36.243239500  'Discharge_UT_Protect': -20,
+2026-01-20 01:11:36.243240500  'Discharge_UT_Release': -10,
+2026-01-20 01:11:36.243242500  'Discharge_UT_Warn': -15,
+2026-01-20 01:11:36.243244500  'Load_Short_Current': 350.0,
+2026-01-20 01:11:36.243245500  'Low_Cap_Warn': 5,
+2026-01-20 01:11:36.243247500  'PCB_OT_Protect': 100,
+2026-01-20 01:11:36.243248500  'PCB_OT_Release': 80,
+2026-01-20 01:11:36.243258500  'PCB_OT_Warn': 95,
+2026-01-20 01:11:36.243260500  'Pack_OV_Protect': 15.2,
+2026-01-20 01:11:36.243297500  'Pack_OV_Release': 14.4,
+2026-01-20 01:11:36.243299500  'Pack_OV_Warn': 14.8,
+2026-01-20 01:11:36.243300500  'Pack_UV_Protect': 9.6,
+2026-01-20 01:11:36.243302500  'Pack_UV_Release': 12.0,
+2026-01-20 01:11:36.243303500  'Pack_UV_Warn': 10.5,
+2026-01-20 01:11:36.243305500  'hwLastPoll': datetime.datetime(2026, 1, 20, 1, 11, 36, 234962),
+2026-01-20 01:11:36.243308500  'hw_make': 'D-4S400AH-P00-ZTR-V1.0',
+2026-01-20 01:11:36.243310500  'hw_serial': '4S12400190500016',
+2026-01-20 01:11:36.243324500  'hw_version': ' Z4SR02'}
+2026-01-20 01:11:36.244952500 INFO:SerialBattery:===== HW Info =====
+2026-01-20 01:11:36.245417500 INFO:SerialBattery:  Battery Make/Model: D-4S400AH-P00-ZTR-V1.0
+2026-01-20 01:11:36.245838500 INFO:SerialBattery:  Hardware Version:  Z4SR02
+2026-01-20 01:11:36.246249500 INFO:SerialBattery:  Serial Number: 4S12400190500016
+2026-01-20 01:11:36.246615500 INFO:SerialBattery:===== Temp =====
+2026-01-20 01:11:36.246990500 INFO:SerialBattery:  Temp 1: 7c | Temp 2: 8c | Temp Mos: 7c
+2026-01-20 01:11:36.247357500 INFO:SerialBattery:  Temp Max: 8 | Temp Min: 7
+2026-01-20 01:11:36.247828500 INFO:SerialBattery:  Heater 16 Status: False
+2026-01-20 01:11:36.248160500 INFO:SerialBattery:  === BMS ID-16 ===
+2026-01-20 01:11:36.248595500 INFO:SerialBattery:    Voltage: 13.321v | Current: 0.0A
+2026-01-20 01:11:36.249012500 INFO:SerialBattery:    Capacity: 398 of 400.0 AH
+2026-01-20 01:11:36.249375500 INFO:SerialBattery:    Balancing State: Off
+2026-01-20 01:11:36.249735500 INFO:SerialBattery:    State: Active/Standby
+2026-01-20 01:11:36.250221500 INFO:SerialBattery:    Last Update: 2026-01-20 01:11:36.010793
+2026-01-20 01:11:36.250624500 INFO:SerialBattery:    SoH: 100% | Cycle Count: 2
+2026-01-20 01:11:36.251008500 INFO:SerialBattery:    SoC: 100%
+2026-01-20 01:11:36.251493500 INFO:SerialBattery:  === Warning/Alarms ===
+2026-01-20 01:11:36.251984500 INFO:SerialBattery:      No Warnings - 0000
+2026-01-20 01:11:36.252408500 INFO:SerialBattery:      No Protection Events - 0000
+2026-01-20 01:11:36.252829500 INFO:SerialBattery:      No Errors - 0000
+2026-01-20 01:11:36.253215500 INFO:SerialBattery:   === Alarm States ===
+2026-01-20 01:11:36.253621500 INFO:SerialBattery:      Cell_OV: OK
+2026-01-20 01:11:36.254005500 INFO:SerialBattery:      Cell_UV: OK
+2026-01-20 01:11:36.254373500 INFO:SerialBattery:      Pack_OV: OK
+2026-01-20 01:11:36.254770500 INFO:SerialBattery:      Pack_UV: OK
+2026-01-20 01:11:36.255156500 INFO:SerialBattery:      Charge_UT: OK
+2026-01-20 01:11:36.255558500 INFO:SerialBattery:      Charge_OT: OK
+2026-01-20 01:11:36.255952500 INFO:SerialBattery:      Discharge_UT: OK
+2026-01-20 01:11:36.256328500 INFO:SerialBattery:      Discharge_OT: OK
+2026-01-20 01:11:36.256689500 INFO:SerialBattery:      PCB_OT: OK
+2026-01-20 01:11:36.257048500 INFO:SerialBattery:      Low_Cap: OK
+2026-01-20 01:11:36.257435500 INFO:SerialBattery:      Load_Short: OK
+2026-01-20 01:11:36.257821500 INFO:SerialBattery:      Over_Charge_Current: OK
+2026-01-20 01:11:36.258201500 INFO:SerialBattery:      Over_Discharge_Current: OK
+2026-01-20 01:11:36.258579500 INFO:SerialBattery:   === Active Controls ===
+2026-01-20 01:11:36.258995500 INFO:SerialBattery:     Pack High Voltage // Cell High Voltage: Ok-Ok
+2026-01-20 01:11:36.259381500 INFO:SerialBattery:     Pack Low Voltage // Cell Low Voltage: Ok-Ok
+2026-01-20 01:11:36.259785500 INFO:SerialBattery:     High Temp Internal // High Temp Discharge: Ok-Ok
+2026-01-20 01:11:36.260232500 INFO:SerialBattery:     Low Temp Charge // Over Current: Ok-Ok
+2026-01-20 01:11:36.260680500 INFO:SerialBattery:     Charging // Discharging // Balancer: Enabled-Enabled-Disabled
+2026-01-20 01:11:36.261083500 INFO:SerialBattery:    === Cell Stats ===
+2026-01-20 01:11:36.261746500 INFO:SerialBattery:      Cell 1: 3.33v
+2026-01-20 01:11:36.262309500 INFO:SerialBattery:      Cell 2: 3.333v
+2026-01-20 01:11:36.262833500 INFO:SerialBattery:      Cell 3: 3.33v
+2026-01-20 01:11:36.263314500 INFO:SerialBattery:      Cell 4: 3.328v
+2026-01-20 01:11:36.263860500 INFO:SerialBattery:  Cell Max/Min/Diff: (3.333/3.328/0.005)v
+2026-01-20 01:11:36.264404500 INFO:SerialBattery:-- Connection established to EG4_LL
+2026-01-20 01:11:36.264850500 INFO:SerialBattery:Successful battery connection at /dev/ttyUSB0 and this address 0x10
+2026-01-20 01:11:36.265249500 INFO:SerialBattery:-- Testing BMS: 1 of 3 rounds
+2026-01-20 01:11:36.265802500 INFO:SerialBattery:  Testing EG4_LL at address "\x01" with 9600 baud
+2026-01-20 01:11:36.272597500 INFO:SerialBattery:Waiting for BMS ID 1 to initialize...
+2026-01-20 01:11:36.850417500 ERROR:SerialBattery:Connected to BMS ID: '4S12400190500001'
+2026-01-20 01:11:36.957404500 INFO:SerialBattery:Polling BMS for config settings...
+2026-01-20 01:11:37.189834500 INFO:SerialBattery:BMS Config Pulled Settings:
+2026-01-20 01:11:37.189842500 {'Balance_Volt': 3.4,
+2026-01-20 01:11:37.189844500  'Balance_Volt_Diff': 0.04,
+2026-01-20 01:11:37.189846500  'Cell_OV_Protect': 3.9,
+2026-01-20 01:11:37.189848500  'Cell_OV_Release': 3.45,
+2026-01-20 01:11:37.189849500  'Cell_OV_Warn': 3.6,
+2026-01-20 01:11:37.189851500  'Cell_UV_Protect': 2.0,
+2026-01-20 01:11:37.189852500  'Cell_UV_Release': 3.1,
+2026-01-20 01:11:37.189854500  'Cell_UV_Warn': 2.5,
+2026-01-20 01:11:37.189855500  'Charge_OC1_Delay': 10,
+2026-01-20 01:11:37.189990500  'Charge_OC1_Protect': 220.0,
+2026-01-20 01:11:37.189994500  'Charge_OC2_Delay': 2,
+2026-01-20 01:11:37.189995500  'Charge_OC2_Protect': 250.0,
+2026-01-20 01:11:37.189997500  'Charge_OC_Times': 0,
+2026-01-20 01:11:37.189999500  'Charge_OT_Protect': 75,
+2026-01-20 01:11:37.190000500  'Charge_OT_Release': 65,
+2026-01-20 01:11:37.190002500  'Charge_OT_Warn': 70,
+2026-01-20 01:11:37.190004500  'Charge_Release': 60,
+2026-01-20 01:11:37.190005500  'Charge_UT_Protect': 0,
+2026-01-20 01:11:37.190020500  'Charge_UT_Release': 5,
+2026-01-20 01:11:37.190021500  'Charge_UT_Warn': 2,
+2026-01-20 01:11:37.190023500  'Discharge_OC1_Delay': 10,
+2026-01-20 01:11:37.190024500  'Discharge_OC1_Protect': 220.0,
+2026-01-20 01:11:37.190026500  'Discharge_OC2_Delay': 2,
+2026-01-20 01:11:37.190028500  'Discharge_OC2_Protect': 250.0,
+2026-01-20 01:11:37.190030500  'Discharge_OC_Times': 0,
+2026-01-20 01:11:37.190031500  'Discharge_OT_Protect': 75,
+2026-01-20 01:11:37.190033500  'Discharge_OT_Release': 65,
+2026-01-20 01:11:37.190044500  'Discharge_OT_Warn': 70,
+2026-01-20 01:11:37.190046500  'Discharge_Release': 60,
+2026-01-20 01:11:37.190048500  'Discharge_UT_Protect': -20,
+2026-01-20 01:11:37.190050500  'Discharge_UT_Release': -10,
+2026-01-20 01:11:37.190051500  'Discharge_UT_Warn': -15,
+2026-01-20 01:11:37.190053500  'Load_Short_Current': 350.0,
+2026-01-20 01:11:37.190055500  'Low_Cap_Warn': 5,
+2026-01-20 01:11:37.190056500  'PCB_OT_Protect': 100,
+2026-01-20 01:11:37.190058500  'PCB_OT_Release': 80,
+2026-01-20 01:11:37.190140500  'PCB_OT_Warn': 95,
+2026-01-20 01:11:37.190143500  'Pack_OV_Protect': 15.2,
+2026-01-20 01:11:37.190185500  'Pack_OV_Release': 14.4,
+2026-01-20 01:11:37.190186500  'Pack_OV_Warn': 14.8,
+2026-01-20 01:11:37.190188500  'Pack_UV_Protect': 9.6,
+2026-01-20 01:11:37.190189500  'Pack_UV_Release': 12.0,
+2026-01-20 01:11:37.190191500  'Pack_UV_Warn': 10.5,
+2026-01-20 01:11:37.190193500  'hwLastPoll': datetime.datetime(2026, 1, 20, 1, 11, 37, 181587),
+2026-01-20 01:11:37.190195500  'hw_make': 'D-4S400AH-P00-ZTR-V1.0',
+2026-01-20 01:11:37.190197500  'hw_serial': '4S1240019050001',
+2026-01-20 01:11:37.190213500  'hw_version': ' Z4SR02'}
+2026-01-20 01:11:37.191743500 INFO:SerialBattery:===== HW Info =====
+2026-01-20 01:11:37.192214500 INFO:SerialBattery:  Battery Make/Model: D-4S400AH-P00-ZTR-V1.0
+2026-01-20 01:11:37.192637500 INFO:SerialBattery:  Hardware Version:  Z4SR02
+2026-01-20 01:11:37.193015500 INFO:SerialBattery:  Serial Number: 4S1240019050001
+2026-01-20 01:11:37.193362500 INFO:SerialBattery:===== Temp =====
+2026-01-20 01:11:37.193729500 INFO:SerialBattery:  Temp 1: 7c | Temp 2: 7c | Temp Mos: 8c
+2026-01-20 01:11:37.194118500 INFO:SerialBattery:  Temp Max: 7 | Temp Min: 7
+2026-01-20 01:11:37.194512500 INFO:SerialBattery:  Heater 1 Status: False
+2026-01-20 01:11:37.194897500 INFO:SerialBattery:  === BMS ID-1 ===
+2026-01-20 01:11:37.195312500 INFO:SerialBattery:    Voltage: 13.330v | Current: 0.0A
+2026-01-20 01:11:37.195711500 INFO:SerialBattery:    Capacity: 400 of 400.0 AH
+2026-01-20 01:11:37.196068500 INFO:SerialBattery:    Balancing State: Off
+2026-01-20 01:11:37.196431500 INFO:SerialBattery:    State: Active/Standby
+2026-01-20 01:11:37.196907500 INFO:SerialBattery:    Last Update: 2026-01-20 01:11:36.956442
+2026-01-20 01:11:37.197294500 INFO:SerialBattery:    SoH: 100% | Cycle Count: 4
+2026-01-20 01:11:37.197655500 INFO:SerialBattery:    SoC: 100%
+2026-01-20 01:11:37.198008500 INFO:SerialBattery:  === Warning/Alarms ===
+2026-01-20 01:11:37.198352500 INFO:SerialBattery:      No Warnings - 0000
+2026-01-20 01:11:37.198758500 INFO:SerialBattery:      No Protection Events - 0000
+2026-01-20 01:11:37.199132500 INFO:SerialBattery:      No Errors - 0000
+2026-01-20 01:11:37.199502500 INFO:SerialBattery:   === Alarm States ===
+2026-01-20 01:11:37.199886500 INFO:SerialBattery:      Cell_OV: OK
+2026-01-20 01:11:37.200239500 INFO:SerialBattery:      Cell_UV: OK
+2026-01-20 01:11:37.200620500 INFO:SerialBattery:      Pack_OV: OK
+2026-01-20 01:11:37.201146500 INFO:SerialBattery:      Pack_UV: OK
+2026-01-20 01:11:37.211931500 INFO:SerialBattery:      Charge_UT: OK
+2026-01-20 01:11:37.211939500 INFO:SerialBattery:      Charge_OT: OK
+2026-01-20 01:11:37.211941500 INFO:SerialBattery:      Discharge_UT: OK
+2026-01-20 01:11:37.211943500 INFO:SerialBattery:      Discharge_OT: OK
+2026-01-20 01:11:37.211945500 INFO:SerialBattery:      PCB_OT: OK
+2026-01-20 01:11:37.211947500 INFO:SerialBattery:      Low_Cap: OK
+2026-01-20 01:11:37.211948500 INFO:SerialBattery:      Load_Short: OK
+2026-01-20 01:11:37.211950500 INFO:SerialBattery:      Over_Charge_Current: OK
+2026-01-20 01:11:37.212111500 INFO:SerialBattery:      Over_Discharge_Current: OK
+2026-01-20 01:11:37.212115500 INFO:SerialBattery:   === Active Controls ===
+2026-01-20 01:11:37.212117500 INFO:SerialBattery:     Pack High Voltage // Cell High Voltage: Ok-Ok
+2026-01-20 01:11:37.212121500 INFO:SerialBattery:     Pack Low Voltage // Cell Low Voltage: Ok-Ok
+2026-01-20 01:11:37.212124500 INFO:SerialBattery:     High Temp Internal // High Temp Discharge: Ok-Ok
+2026-01-20 01:11:37.212146500 INFO:SerialBattery:     Low Temp Charge // Over Current: Ok-Ok
+2026-01-20 01:11:37.212149500 INFO:SerialBattery:     Charging // Discharging // Balancer: Enabled-Enabled-Disabled
+2026-01-20 01:11:37.212515500 INFO:SerialBattery:    === Cell Stats ===
+2026-01-20 01:11:37.213183500 INFO:SerialBattery:      Cell 1: 3.334v
+2026-01-20 01:11:37.213830500 INFO:SerialBattery:      Cell 2: 3.332v
+2026-01-20 01:11:37.214380500 INFO:SerialBattery:      Cell 3: 3.334v
+2026-01-20 01:11:37.214854500 INFO:SerialBattery:      Cell 4: 3.33v
+2026-01-20 01:11:37.215396500 INFO:SerialBattery:  Cell Max/Min/Diff: (3.334/3.33/0.004)v
+2026-01-20 01:11:37.215939500 INFO:SerialBattery:-- Connection established to EG4_LL
+2026-01-20 01:11:37.216357500 INFO:SerialBattery:Successful battery connection at /dev/ttyUSB0 and this address 0x01
+2026-01-20 01:11:42.283677500 INFO:SerialBattery:Reconnected to previously identified battery with DeviceInstance: 5
+2026-01-20 01:11:42.354404500 ERROR:root:Failed to add setting /Settings/Devices/serialbattery_4S12400190500016/SocCalc, error -5
+2026-01-20 01:11:42.355617500 INFO:SerialBattery:Use DeviceInstance: 5
+2026-01-20 01:11:42.357761500 INFO:SerialBattery:Use dbus ServiceName: com.victronenergy.battery.ttyUSB0__0x10
+2026-01-20 01:11:47.796599500 INFO:SerialBattery:Reconnected to previously identified battery with DeviceInstance: 6
+2026-01-20 01:11:47.851930500 ERROR:root:Failed to add setting /Settings/Devices/serialbattery_4S1240019050001/MaxVoltageStartTime, error -5
+2026-01-20 01:11:47.852575500 ERROR:root:Failed to add setting /Settings/Devices/serialbattery_4S1240019050001/SocCalc, error -5
+2026-01-20 01:11:47.853674500 INFO:SerialBattery:Use DeviceInstance: 6
+2026-01-20 01:11:47.855428500 INFO:SerialBattery:Use dbus ServiceName: com.victronenergy.battery.ttyUSB0__0x01
+2026-01-20 01:11:47.911498500 INFO:SerialBattery:Polling interval: 3.000 s
+2026-01-20 01:11:47.913731500 INFO:SerialBattery:Battery EG4-LL connected to dbus from /dev/ttyUSB0
+2026-01-20 01:11:47.914429500 INFO:SerialBattery:========== Settings ==========
+2026-01-20 01:11:47.915147500 INFO:SerialBattery:> Connection voltage: 13.321 V | Current: 0.0 A | SoC: 100% | SoC calc: 100%
+2026-01-20 01:11:47.915718500 INFO:SerialBattery:> Cell count: 4 | Cells populated: 4
+2026-01-20 01:11:47.916255500 INFO:SerialBattery:> CHARGE MODE: Linear
+2026-01-20 01:11:47.916868500 INFO:SerialBattery:> MIN CELL VOLTAGE: 2.500 V | MAX CELL VOLTAGE: 3.550 V| FLOAT CELL VOLTAGE: 3.375 V
+2026-01-20 01:11:47.917548500 INFO:SerialBattery:> MAX BATTERY CHARGE CURRENT: 100.0 A | MAX BATTERY DISCHARGE CURRENT: 200.0 A
+2026-01-20 01:11:47.918187500 INFO:SerialBattery:> CVCM:       True
+2026-01-20 01:11:47.918821500 INFO:SerialBattery:> CCCM CV:    True  | DCCM CV:       True
+2026-01-20 01:11:47.919657500 INFO:SerialBattery:> CCCM T:     True  | DCCM T:        True
+2026-01-20 01:11:47.920614500 INFO:SerialBattery:> CCCM T MOS: True  | DCCM T MOS:    True
+2026-01-20 01:11:47.924332500 INFO:SerialBattery:> CCCM SOC:   False | DCCM SOC:      False
+2026-01-20 01:11:47.924341500 INFO:SerialBattery:> CHARGE FET: True  | DISCHARGE FET: True | BALANCE FET: False
+2026-01-20 01:11:47.924344500 INFO:SerialBattery:Serial Number/Unique Identifier: 4S12400190500016
+2026-01-20 01:11:47.924348500 INFO:SerialBattery:Battery EG4-LL connected to dbus from /dev/ttyUSB0
+2026-01-20 01:11:47.925514500 INFO:SerialBattery:========== Settings ==========
+2026-01-20 01:11:47.926666500 INFO:SerialBattery:> Connection voltage: 13.33 V | Current: 0.0 A | SoC: 100% | SoC calc: 100%
+2026-01-20 01:11:47.927802500 INFO:SerialBattery:> Cell count: 4 | Cells populated: 4
+2026-01-20 01:11:47.928663500 INFO:SerialBattery:> CHARGE MODE: Linear
+2026-01-20 01:11:47.929994500 INFO:SerialBattery:> MIN CELL VOLTAGE: 2.500 V | MAX CELL VOLTAGE: 3.550 V| FLOAT CELL VOLTAGE: 3.375 V
+2026-01-20 01:11:47.930991500 INFO:SerialBattery:> MAX BATTERY CHARGE CURRENT: 100.0 A | MAX BATTERY DISCHARGE CURRENT: 200.0 A
+2026-01-20 01:11:47.932489500 INFO:SerialBattery:> CVCM:       True
+2026-01-20 01:11:47.933580500 INFO:SerialBattery:> CCCM CV:    True  | DCCM CV:       True
+2026-01-20 01:11:47.934356500 INFO:SerialBattery:> CCCM T:     True  | DCCM T:        True
+2026-01-20 01:11:47.935052500 INFO:SerialBattery:> CCCM T MOS: True  | DCCM T MOS:    True
+2026-01-20 01:11:47.935679500 INFO:SerialBattery:> CCCM SOC:   False | DCCM SOC:      False
+2026-01-20 01:11:47.936359500 INFO:SerialBattery:> CHARGE FET: True  | DISCHARGE FET: True | BALANCE FET: False
+2026-01-20 01:11:47.937116500 INFO:SerialBattery:Serial Number/Unique Identifier: 4S1240019050001
