@@ -31,8 +31,6 @@ from bms.EG4_ll_alarm_manager import EG4AlarmManager
 class EG4_LL(Battery):
     def __init__(self, port, baud, address):
         super(EG4_LL, self).__init__(port, baud, address)
-        self.cell_min_voltage = 0
-        self.cell_max_voltage = None
         self.has_settings = 0
         self.reset_soc = 0
         self.soc_to_set = None
@@ -42,7 +40,7 @@ class EG4_LL(Battery):
 
     statuslogger = False # Prints to STDOut After Each BMS Poll
     LoadBMSSettings = True # Load BMS Config on Startup && Use Driver Based Alarms
-    protectionLogger = True # Print to STDOut when BMS raises an error 
+    protectionLogger = True # Print to STDOut when BMS raises an error
     crcchecksumlogger = False # Print to stdout when the BMS Reply fails the CRC checksum
 
     battery_stats = {}
@@ -78,6 +76,10 @@ class EG4_LL(Battery):
             self.battery_stats = {}
             self.Id = int.from_bytes(self.address, "big")
             self.ser = self.open_serial()
+            logger.info(f"Waiting for BMS ID {self.Id} to initialize...")
+            sleep(0.5)  # 500ms delay
+            self.ser.reset_input_buffer()
+            self.ser.reset_output_buffer()
             command = self.eg4CommandGen((self.Id.to_bytes(1, 'big') + self.hwCommandRoot))
             reply = self.read_eg4ll_command(command)
             if reply is False:
@@ -655,7 +657,7 @@ class EG4_LL(Battery):
                 self.ser.reset_input_buffer()
                 self.ser.reset_output_buffer()
                 self.ser.write(command)
-                sleep(0.035)
+                sleep(0.010) # was .035
                 buffer = bytearray()
                 start_time = time.time()
                 # Read with timeout
@@ -666,7 +668,7 @@ class EG4_LL(Battery):
                     if waiting:
                         buffer.extend(self.ser.read(waiting))
                     else:
-                        sleep(0.03)
+                        sleep(0.01) # was .030
                 received_len = len(buffer)
                 # Check length
                 if received_len >= reply_length:
