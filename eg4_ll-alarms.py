@@ -77,7 +77,7 @@ class EG4_LL(Battery):
             self.Id = int.from_bytes(self.address, "big")
             self.ser = self.open_serial()
             logger.info(f"Waiting for BMS ID {self.Id} to initialize...")
-            sleep(0.5)  # 500ms delay
+            sleep(1.0)  # 500ms delay
             self.ser.reset_input_buffer()
             self.ser.reset_output_buffer()
             command = self.eg4CommandGen((self.Id.to_bytes(1, 'big') + self.hwCommandRoot))
@@ -88,7 +88,7 @@ class EG4_LL(Battery):
                 serial = (reply[33:48].decode("utf-8")+str(self.Id))
                 logger.error(f"Connected to BMS ID: {pformat(serial)}")
                 self.serial_number = serial
-                self.poll_interval = (((self.serialTimeout)*1000)*3)
+                self.poll_interval = (self.serialTimeout * 1000) * 3
                 self.custom_field = self.BATTERYTYPE+":"+str(self.Id)
                 cell_poll = self.read_battery_bank()
                 if cell_poll is True:
@@ -634,19 +634,19 @@ class EG4_LL(Battery):
             if cmd_id == 0x69:
                 command_string = "Hardware"
                 reply_length = 51
-                poll_timeout = 2.5
+                poll_timeout = 1.5
             elif cmd_id == 0x00:
                 command_string = "Cell"
                 reply_length = 83
-                poll_timeout = 4.0
+                poll_timeout = 2.0
             elif cmd_id == 0x2D:
                 command_string = "Config"
                 reply_length = 187
-                poll_timeout = 4.0
+                poll_timeout = 2.5
             else:
                 command_string = "UNKNOWN"
                 reply_length = 0
-                poll_timeout = 3.0
+                poll_timeout = 1.5
             if not self.ser or not self.ser.is_open:
                 logger.error("ERROR - Serial Port Not Open!")
                 self.ser = self.open_serial()
