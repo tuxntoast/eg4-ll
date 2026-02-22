@@ -10,6 +10,7 @@ from time import sleep
 from pprint import pformat
 import serial, struct, sys
 import utils, datetime, time
+from battery import Protection
 
 #    Author: Pfitz
 #    Date: 31 Jan 2026
@@ -368,10 +369,11 @@ class EG4_LL(Battery):
                     else:
                         logger.info(f"      NONE")
             logger.info("   === Active Controls ===")
-            logger.info(f"     Pack High Voltage // Cell High Voltage: {self._state_str(self.voltage_high)}-{self._state_str(self.voltage_cell_high)}")
-            logger.info(f"     Pack Low Voltage // Cell Low Voltage: {self._state_str(self.voltage_low)}-{self._state_str(self.voltage_cell_low)}")
-            logger.info(f"     High Temp Internal // High Temp Discharge: {self._state_str(self.temp_high_internal)}-{self._state_str(self.temp_high_discharge)}")
-            logger.info(f"     Low Temp Charge // Over Current: {self._state_str(self.temp_low_charge)}-{self._state_str(self.current_over)}")
+            logger.info(f"     Pack High Voltage // Cell High Voltage: {self._state_str(self.protection.voltage_high)}-{self._state_str(self.protection.voltage_cell_high)}")
+            logger.info(f"     Pack Low Voltage // Cell Low Voltage: {self._state_str(self.protection.voltage_low)}-{self._state_str(self.protection.voltage_cell_low)}")
+            logger.info(f"     High Temp Charge // Low Temp Charge: {self._state_str(self.protection.temp_high_charge)}-{self._state_str(self.protection.temp_low_charge)}")
+            logger.info(f"     High Temp Discharge // Low Temp Discharge: {self._state_str(self.protection.temp_high_discharge)}-{self._state_str(self.protection.temp_low_discharge)}")
+            logger.info(f"     Charge Over Current // Discharge Over Current: {self._state_str(self.protection.current_over)}-{self._state_str(self.protection.current_under)}")
             logger.info(f"     Charging // Discharging // Balancer: {self._fet_str(self.charge_fet)}-{self._fet_str(self.discharge_fet)}-{self._fet_str(self.balance_fet)}")
         logger.info("    === Cell Stats ===")
         for cellId in range(1, packet["cell_count"] + 1):
@@ -382,22 +384,22 @@ class EG4_LL(Battery):
         return True
 
     def update_alarm_dbus(self, alarm_status):
-        self.voltage_high = alarm_status.get("Pack_OV", 0)
-        self.voltage_cell_high = alarm_status.get("Cell_OV", 0)
-        self.voltage_low = alarm_status.get("Pack_UV", 0)
-        self.voltage_cell_low = alarm_status.get("Cell_UV", 0)
+        self.protection.voltage_high = alarm_status.get("Pack_OV", 0)
+        #self.protection.voltage_cell_high  = alarm_status.get("Cell_OV", 0)
+        self.protection.voltage_low = alarm_status.get("Pack_UV", 0)
+        self.protection.voltage_cell_low = alarm_status.get("Cell_UV", 0)
+        self.protection.soc_low = alarm_status.get("Low_Cap", 0)
         self.charge_fet = self.alarm_mgr.charge_fet
         self.discharge_fet = self.alarm_mgr.discharge_fet
-        self.current_over = max(
-            alarm_status.get("Charge_OC1",0),
-            alarm_status.get("Charge_OC2",0),
-            alarm_status.get("Discharge_OC1",0),
-            alarm_status.get("Discharge_OC2",0),
-            alarm_status.get("Load_Short",0)
+        self.protection.current_over = alarm_status.get("Over_Charge_Current", 0)
+        self.protection.current_under = max(
+            alarm_status.get("Over_Discharge_Current", 0),
+            alarm_status.get("Load_Short", 0)
         )
-        self.temp_high_internal = alarm_status.get("Charge_OT",0)
-        self.temp_high_discharge = alarm_status.get("Discharge_OT",0)
-        self.temp_low_charge = alarm_status.get("Charge_UT",0)
+        self.protection.temp_high_charge = alarm_status.get("Charge_OT",0)
+        self.protection.temp_high_discharge = alarm_status.get("Discharge_OT",0)
+        self.protection.temp_low_charge = alarm_status.get("Charge_UT",0)
+        self.protection.temp_low_discharge = alarm_status.get("Discharge_UT",0)
 
     def lookup_warning(self, packet):
         warning_alarm = ""
@@ -867,16 +869,6 @@ class EG4AlarmManager:
         self.discharge_fet = all(
             alarms.get(k, 0) < 2 for k in ["Cell_UV", "Pack_UV", "Discharge_OT", "Discharge_UT", "Load_Short", "Over_Discharge_Current"]
         )
-
-        # --- Map alarms to warning/protection variables ---
-        self.voltage_high = max([alarms.get("Pack_OV", 0), alarms.get("Cell_OV", 0)])
-        self.voltage_cell_high = alarms.get("Cell_OV", 0)
-        self.voltage_low = max([alarms.get("Pack_UV", 0), alarms.get("Cell_UV", 0)])
-        self.voltage_cell_low = alarms.get("Cell_UV", 0)
-        self.current_over = max([alarms.get("Over_Charge_Current", 0), alarms.get("Over_Discharge_Current", 0)])
-        self.temp_high_internal = alarms.get("PCB_OT", 0)
-        self.temp_high_discharge = alarms.get("Discharge_OT", 0)
-        self.temp_low_charge = alarms.get("Charge_UT", 0)
 
         # --- Edge-triggered logging ---
         changed = False
