@@ -82,7 +82,7 @@ class EG4_LL(Battery):
             self.Id = int.from_bytes(self.address, "big")
             self.ser = self.open_serial()
             logger.info(f"Waiting for BMS ID {self.Id} to initialize...")
-            sleep(0.25)
+            sleep(1.0)
             self.ser.reset_input_buffer()
             self.ser.reset_output_buffer()
             command = self.eg4CommandGen((self.Id.to_bytes(1, "big") + self.hwCommandRoot))
@@ -674,32 +674,44 @@ class EG4_LL(Battery):
                 if not self.ser:
                     return False
             # Retry loop with CRC validation
+            received_len = 0
             for attempt in range(1, 4):
-                self.ser.reset_input_buffer()
-                self.ser.reset_output_buffer()
-                self.ser.write(command)
-                sleep(0.010)  # was .035
-                buffer = bytearray()
-                start_time = time.time()
-                # Read with timeout
-                while len(buffer) < reply_length:
-                    if (time.time() - start_time) > poll_timeout:
-                        break
-                    waiting = self.ser.in_waiting
-                    if waiting:
-                        buffer.extend(self.ser.read(waiting))
-                    else:
-                        sleep(0.01)  # was .030
-                received_len = len(buffer)
-                # Check length
-                if received_len >= reply_length:
-                    reply_data = bytes(buffer[:reply_length])
-                    # VALIDATE CRC
-                    if not self.validate_crc(reply_data):
-                        continue  # Retry on CRC failure
-                    # CRC valid
-                    self._eg4_ll_initialized = True
-                    return reply_data
+                try:
+                    self.ser.reset_input_buffer()
+                    self.ser.reset_output_buffer()
+                    self.ser.write(command)
+                    sleep(0.035)
+                    buffer = bytearray()
+                    start_time = time.time()
+                    # Read with timeout
+                    while len(buffer) < reply_length:
+                        if (time.time() - start_time) > poll_timeout:
+                            break
+                        waiting = self.ser.in_waiting
+                        if waiting:
+                            buffer.extend(self.ser.read(waiting))
+                        else:
+                            sleep(0.01)
+                    received_len = len(buffer)
+                    # Check length
+                    if received_len >= reply_length:
+                        reply_data = bytes(buffer[:reply_length])
+                        # VALIDATE CRC
+                        if not self.validate_crc(reply_data):
+                            continue  # Retry on CRC failure
+                        # CRC valid
+                        self._eg4_ll_initialized = True
+                        return reply_data
+                except serial.SerialException as e:
+                    logger.error(f"Serial error on attempt {attempt} for BMS {bms_id}: {e}")
+                    try:
+                        self.ser.close()
+                    except Exception:
+                        pass
+                    sleep(2.0)
+                    self.ser = self.open_serial()
+                    if not self.ser:
+                        return False
             # All attempts failed
             logger.error(
                 f"ERROR - All retry attempts failed! " f"BMS ID: {bms_id} Command: {command_string} " f"Received: {received_len} Expected: {reply_length}"
