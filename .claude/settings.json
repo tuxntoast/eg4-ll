@@ -4,6 +4,7 @@
       "Bash(scp *)",
       "Bash(ssh *)",
       "Bash(sleep *)",
+      "Bash(git *)",
       "Read",
       "Edit",
       "Write",
