@@ -214,7 +214,7 @@ class EG4_LL(Battery):
             return False
         battery.update({"hw_make": result[2:25].decode("utf-8")})
         battery.update({"hw_version": result[27:33].decode("utf-8")})
-        battery.update({"hw_serial": (result[33:48].decode("utf-8") + str(id))})
+        battery.update({"hw_serial": result[33:48].decode("utf-8") + str(id)})
         battery.update({"hwLastPoll": (datetime.datetime.now())})
         return battery
 
