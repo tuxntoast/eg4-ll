@@ -182,6 +182,8 @@ class EG4_LL(Battery):
         alarm_status = {}
         if self.LoadBMSSettings is True:
             alarm_status = self.alarm_mgr.evaluate(new_data=bank_stats)
+            # update_alarm_dbus must come before any logging so protection attributes
+            # reflect the current alarm state when the logger reads them
             self.update_alarm_dbus(alarm_status)
             self.battery_stats[self.Id] = bank_stats = {**bank_stats, **alarm_status}
         else:
@@ -191,7 +193,14 @@ class EG4_LL(Battery):
             self.eg4ll_logger(bank_stats, 1, alarm_status)
             self._initial_status_logged = True
             return True
-        # Call BMS_stats when BMS raised an event
+        # Log when driver-level alarm state changes (after update_alarm_dbus so protection attrs are current)
+        if self.LoadBMSSettings is True and self.alarm_mgr._alarms_changed:
+            active_alarms = {k: v for k, v in alarm_status.items() if v != 0}
+            if active_alarms:
+                logger.error("** BMS Error, Protect or Warning Event Code Found In Polling Cycle **")
+                self.eg4ll_logger(bank_stats, 2, active_alarms)
+                return True
+        # Call BMS_stats when BMS hardware registers report an event
         elif any(bank_stats.get(k, "0000") != "0000" for k in ["protection_hex", "warning_hex", "error_hex"]):
             if self.protectionLogger is True:
                 logger.error("** BMS Error, Protect or Warning Event Code Found In Polling Cycle **")
@@ -930,22 +939,16 @@ class EG4AlarmManager:
             and all(alarms.get(k, 0) < 2 for k in ["Discharge_OT", "Discharge_UT"])
         )
 
-        # --- Edge-triggered logging ---
-        changed = False
+        # --- Edge-triggered state tracking ---
+        self._alarms_changed = False
         for alarm, state in alarms.items():
             prev = self.alarm_states.get(alarm, state)
             if state != prev:
-                changed = True
+                self._alarms_changed = True
             self.alarm_states[alarm] = state
 
-        # Suppress logging on first valid evaluation
+        # Suppress on first valid evaluation
         if not self._initialized:
             self._initialized = True
-            return alarms
-
-        if changed and self.eg4ll_logger_cb:
-            active_alarms = {k: v for k, v in alarms.items() if v != 0}
-            if active_alarms:
-                self.eg4ll_logger_cb(self.data, 2, active_alarms)
 
         return alarms
