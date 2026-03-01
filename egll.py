@@ -123,7 +123,7 @@ class EG4_LL(Battery):
                 logger.error(f"Connected to BMS ID: {pformat(serial)}")
                 self.serial_number = serial
                 self.poll_interval = (self.serialTimeout * 1000) * 3
-                self.custom_field = self.BATTERYTYPE + ":" + str(self.Id)
+                self.custom_field = self.BATTERYTYPE + ":" + format(self.Id, "02d")
                 cell_poll = self.read_battery_bank()
                 if cell_poll is True:
                     return True
