@@ -70,23 +70,41 @@ class EG4_LL(Battery):
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE,
             bytesize=serial.EIGHTBITS,
+            dsrdtr=False,
+            rtscts=False,
         )
         if ser.isOpen():
             return ser
         else:
             return False
 
+    # How long to keep retrying the initial connection before giving up.
+    # The CH341 USB-RS485 adapter needs ~40s after port open to settle.
+    CONNECTION_TIMEOUT = 60
+
     def test_connection(self):
         try:
             self.battery_stats = {}
             self.Id = int.from_bytes(self.address, "big")
-            self.ser = self.open_serial()
-            logger.info(f"Waiting for BMS ID {self.Id} to initialize...")
-            sleep(1.0)
+            # Keep port open between framework rounds - closing resets the CH341 settling clock
+            if not hasattr(self, "ser") or self.ser is None or not self.ser.is_open:
+                self.ser = self.open_serial()
+                logger.info(f"Waiting for BMS ID {self.Id} to initialize...")
+                sleep(3.0)
             self.ser.reset_input_buffer()
             self.ser.reset_output_buffer()
             command = self.eg4CommandGen((self.Id.to_bytes(1, "big") + self.hwCommandRoot))
-            reply = self.read_eg4ll_command(command)
+            # Retry for up to CONNECTION_TIMEOUT seconds to allow CH341 adapter to settle
+            t_start = time.time()
+            reply = False
+            while time.time() - t_start < self.CONNECTION_TIMEOUT:
+                reply = self.read_eg4ll_command(command)
+                if reply is not False:
+                    break
+                remaining = self.CONNECTION_TIMEOUT - (time.time() - t_start)
+                if remaining > 3.0:
+                    logger.info(f"BMS ID {self.Id} not ready, retrying... ({remaining:.0f}s remaining)")
+                    sleep(3.0)
             if reply is False:
                 return False
             else:
@@ -704,14 +722,21 @@ class EG4_LL(Battery):
                         return reply_data
                 except serial.SerialException as e:
                     logger.error(f"Serial error on attempt {attempt} for BMS {bms_id}: {e}")
+                    # Flush without closing - closing resets the CH341 settling clock
                     try:
-                        self.ser.close()
+                        self.ser.reset_input_buffer()
+                        self.ser.reset_output_buffer()
+                        sleep(1.0)
                     except Exception:
-                        pass
-                    sleep(2.0)
-                    self.ser = self.open_serial()
-                    if not self.ser:
-                        return False
+                        # Port is truly dead - reopen as last resort
+                        try:
+                            self.ser.close()
+                        except Exception:
+                            pass
+                        sleep(2.0)
+                        self.ser = self.open_serial()
+                        if not self.ser:
+                            return False
             # All attempts failed
             logger.error(
                 f"ERROR - All retry attempts failed! " f"BMS ID: {bms_id} Command: {command_string} " f"Received: {received_len} Expected: {reply_length}"
