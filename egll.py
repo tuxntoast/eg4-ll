@@ -919,10 +919,16 @@ class EG4AlarmManager:
         )
 
         # --- FET control flags ---
-        # Charge FET logic
-        self.charge_fet = all(alarms.get(k, 0) < 2 for k in ["Cell_OV", "Pack_OV", "Charge_OT", "Charge_UT", "Load_Short", "Over_Charge_Current"])
-        # Discharge FET logic
-        self.discharge_fet = all(alarms.get(k, 0) < 2 for k in ["Cell_UV", "Pack_UV", "Discharge_OT", "Discharge_UT", "Load_Short", "Over_Discharge_Current"])
+        # Voltage and current alarms disable FET on WARNING or PROTECTION (any non-zero state)
+        # Temperature alarms only disable FET on PROTECTION (state == 2) due to thermal buffering
+        self.charge_fet = (
+            all(alarms.get(k, 0) == 0 for k in ["Cell_OV", "Pack_OV", "Load_Short", "Over_Charge_Current"])
+            and all(alarms.get(k, 0) < 2 for k in ["Charge_OT", "Charge_UT"])
+        )
+        self.discharge_fet = (
+            all(alarms.get(k, 0) == 0 for k in ["Cell_UV", "Pack_UV", "Load_Short", "Over_Discharge_Current"])
+            and all(alarms.get(k, 0) < 2 for k in ["Discharge_OT", "Discharge_UT"])
+        )
 
         # --- Edge-triggered logging ---
         changed = False
