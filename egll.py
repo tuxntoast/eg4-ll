@@ -111,7 +111,7 @@ class EG4_LL(Battery):
                     break
                 remaining = self.CONNECTION_TIMEOUT - (time.time() - t_start)
                 if remaining > 3.0:
-                    logger.info(
+                    logger.debug(
                         f"BMS ID {self.Id} not ready, retrying... ({remaining:.0f}s remaining)"
                     )
                     sleep(3.0)
