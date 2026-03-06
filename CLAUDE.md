@@ -47,10 +47,7 @@ git -C /Users/patfitz/Documents/GitHub/venus-os_dbus-serialbattery log --oneline
 # 3. Live BMS status on Cerbo
 ssh root@10.0.1.244 'tail -n 30 /data/log/dbus-serialbattery.ttyUSB0/current | tai64nlocal'
 
-# 4. Monitor log
-tail -n 20 /tmp/eg4_monitor.log
-
-# 5. PR status
+# 4. PR status
 gh pr view 408 --repo mr-manuel/venus-os_dbus-serialbattery
 ```
 
