@@ -52,10 +52,10 @@ gh pr view 408 --repo mr-manuel/venus-os_dbus-serialbattery
 ```
 
 ## Upstream PR
-- **PR #408 OPEN**: https://github.com/mr-manuel/venus-os_dbus-serialbattery/pull/408
+- **PR #408 OPEN, awaiting review**: https://github.com/mr-manuel/venus-os_dbus-serialbattery/pull/408
 - Branch: `tuxntoast:fix/eg4_ll-improvements` → `mr-manuel:master`
 - All CI checks passing (CodeQL, Black, flake8, tests)
-- Note: after every egll.py change, also run `black` before pushing to fork to avoid CI failure
+- Always run `black dbus-serialbattery/bms/eg4_ll.py` in the fork before pushing — CI will fail otherwise
 
 ## Key config.ini Settings (deployed to Cerbo)
 | Setting | Value | Notes |
