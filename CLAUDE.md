@@ -47,14 +47,18 @@ git -C /Users/patfitz/Documents/GitHub/venus-os_dbus-serialbattery log --oneline
 # 3. Live BMS status on Cerbo
 ssh root@10.0.1.244 'tail -n 30 /data/log/dbus-serialbattery.ttyUSB0/current | tai64nlocal'
 
-# 4. 24h monitor log (if PR pending)
-cat /tmp/eg4_monitor2.log
+# 4. Monitor log
+tail -n 20 /tmp/eg4_monitor.log
+
+# 5. PR status
+gh pr view 408 --repo mr-manuel/venus-os_dbus-serialbattery
 ```
 
-## Pending: Open Upstream PR
-PR is **not yet opened** — waiting for 24 hours of clean runtime per CONTRIBUTING.md.
-- Monitor log: `/tmp/eg4_monitor2.log` (local Mac, pauses on laptop sleep — check on resume)
-- Once clean: open PR from `tuxntoast/venus-os_dbus-serialbattery:fix/eg4_ll-improvements` → `mr-manuel/venus-os_dbus-serialbattery:master`
+## Upstream PR
+- **PR #408 OPEN**: https://github.com/mr-manuel/venus-os_dbus-serialbattery/pull/408
+- Branch: `tuxntoast:fix/eg4_ll-improvements` → `mr-manuel:master`
+- All CI checks passing (CodeQL, Black, flake8, tests)
+- Note: after every egll.py change, also run `black` before pushing to fork to avoid CI failure
 
 ## Key config.ini Settings (deployed to Cerbo)
 | Setting | Value | Notes |
