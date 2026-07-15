@@ -46,9 +46,7 @@ class EG4_LL(Battery):
     LoadBMSSettings = utils.get_bool_from_config("DEFAULT", "EG4_LL_LOAD_BMS_SETTINGS")  # Load BMS Config on Startup && Use Driver Based Alarms
     protectionLogger = utils.get_bool_from_config("DEFAULT", "EG4_LL_PROTECTION_LOGGER")  # Print to STDOut when BMS raises an error
     crcchecksumlogger = utils.get_bool_from_config("DEFAULT", "EG4_LL_CRC_CHECKSUM_LOGGER")  # Print to stdout when the BMS Reply fails the CRC checksum
-    protectionOnlyEvents = utils.get_bool_from_config(
-        "DEFAULT", "EG4_LL_PROTECTION_ONLY_EVENTS"
-    )  # True: only protection-level (2) alarms trigger events/logging; warnings (1) are ignored
+    protectionOnlyEvents = True  # True: only protection-level (2) alarms trigger events/logging; warnings (1) are ignored
 
     battery_stats = {}
     serialTimeout = 2  # Serial Connection timeout
